@@ -1,0 +1,3130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>学霸机器 · PDF 智能精读</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ── RESET & VARS ── */
+:root{
+  --cream:#f7f3ed; --cream2:#ede8e0;
+  --ink:#1c1917; --ink2:#3d3830;
+  --sb:#1e1b16; --sb2:#2a2520; --sb3:#332e27;
+  --bdr:#d6cfc4; --bdr-dk:#3a342c;
+  --amber:#d97706; --amber-l:#fef3c7; --amber-p:#fffbf0;
+  --blue:#2563eb; --blue-l:#eff6ff;
+  --green:#059669; --green-l:#ecfdf5;
+  --rose:#e11d48; --rose-l:#fff1f2;
+  --purple:#7c3aed; --purple-l:#f5f3ff;
+  --muted:#78716c; --muted2:#a8a29e;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{background:var(--cream);color:var(--ink);font-family:'Noto Sans SC',sans-serif;font-size:14px;line-height:1.7;display:flex;flex-direction:column}
+
+/* ── TOPBAR ── */
+.topbar{background:var(--sb);color:#f0ebe3;height:52px;display:flex;align-items:center;padding:0 18px;gap:12px;flex-shrink:0;border-bottom:1px solid var(--bdr-dk)}
+.logo{font-family:'Noto Serif SC',serif;font-size:.95rem;font-weight:700;color:#f0ebe3;letter-spacing:.04em;white-space:nowrap}
+.logo span{color:var(--amber)}
+.vdiv{width:1px;height:22px;background:var(--bdr-dk);flex-shrink:0}
+.tl{font-size:.68rem;color:#7a7068;white-space:nowrap;font-family:'JetBrains Mono',monospace}
+.api-in{flex:1;max-width:230px;background:var(--sb2);border:1px solid var(--bdr-dk);border-radius:6px;padding:5px 9px;color:#f0ebe3;font-family:'JetBrains Mono',monospace;font-size:.7rem}
+.api-in:focus{outline:none;border-color:var(--amber)}
+.mdl-sel{background:var(--sb2);border:1px solid var(--bdr-dk);border-radius:6px;padding:5px 7px;color:#f0ebe3;font-size:.7rem;font-family:'JetBrains Mono',monospace;cursor:pointer}
+.spill{flex:1}
+.status-pill{display:flex;align-items:center;gap:5px;font-size:.67rem;color:#7a7068;font-family:'JetBrains Mono',monospace}
+.sdot{width:7px;height:7px;border-radius:50%;background:#4a4238;flex-shrink:0;transition:all .3s}
+.sdot.ok{background:#10b981;box-shadow:0 0 5px #10b981}
+.sdot.err{background:var(--rose)}
+.sdot.spin{background:var(--amber);animation:blink .7s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+.tbtn{background:transparent;border:1px solid var(--bdr-dk);border-radius:6px;color:#c4bdb5;padding:5px 12px;font-size:.72rem;cursor:pointer;font-family:'Noto Sans SC',sans-serif;transition:all .15s;white-space:nowrap}
+.tbtn:hover{border-color:var(--amber);color:var(--amber)}
+.tbtn.hi{background:var(--amber);border-color:var(--amber);color:#fff}
+.tbtn.hi:hover{background:#b45309}
+
+/* ── LAYOUT ── */
+.ws{flex:1;display:grid;grid-template-columns:260px 1fr 360px;overflow:hidden;min-height:0}
+
+/* ── LEFT SIDEBAR ── */
+.sidebar{background:var(--sb);border-right:1px solid var(--bdr-dk);display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.sb-hd{padding:10px 14px;border-bottom:1px solid var(--bdr-dk);flex-shrink:0}
+.sb-label{font-size:.62rem;color:#4a4238;letter-spacing:.08em;text-transform:uppercase;font-family:'JetBrains Mono',monospace}
+.outline-scroll{flex:1;overflow-y:auto;padding:6px 0}
+.outline-scroll::-webkit-scrollbar{width:3px}
+.outline-scroll::-webkit-scrollbar-thumb{background:var(--bdr-dk);border-radius:2px}
+.no-outline{color:#3a342c;font-size:.75rem;padding:20px 16px;line-height:1.8;text-align:center}
+
+/* Outline tree nodes */
+.on{} /* outline node wrapper */
+.or{display:flex;align-items:center;gap:0;padding:4px 10px;cursor:pointer;border-radius:0;transition:background .12s;min-height:28px;user-select:none}
+.or:hover{background:var(--sb3)}
+.or.active{background:var(--sb3);border-left:2px solid var(--amber)}
+.or.active .ot{color:#f0ebe3}
+.otog{width:14px;font-size:.55rem;color:#4a4238;flex-shrink:0;transition:transform .15s;text-align:center}
+.otog.open{transform:rotate(90deg)}
+.ot{font-size:.74rem;color:#8a8078;flex:1;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.or:hover .ot{color:#c4bdb5}
+.op{font-size:.58rem;font-family:'JetBrains Mono',monospace;color:#4a4238;flex-shrink:0;margin-left:3px}
+.oc{display:none}
+.oc.open{display:block}
+
+/* ── CENTER: PDF ── */
+.pdf-panel{display:flex;flex-direction:column;overflow:hidden;background:#e8e2da;min-height:0}
+.pdf-tb{height:40px;background:var(--sb);border-bottom:1px solid var(--bdr-dk);display:flex;align-items:center;padding:0 12px;gap:8px;flex-shrink:0}
+.pdf-title{font-size:.72rem;color:#7a7068;flex:1;font-family:'JetBrains Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pnav{display:flex;align-items:center;gap:4px}
+.nbtn{width:24px;height:24px;background:var(--sb2);border:1px solid var(--bdr-dk);border-radius:4px;color:#c4bdb5;cursor:pointer;font-size:.9rem;display:flex;align-items:center;justify-content:center;transition:all .12s}
+.nbtn:hover{border-color:var(--amber);color:var(--amber)}
+.pnum{font-family:'JetBrains Mono',monospace;font-size:.68rem;color:#7a7068;min-width:52px;text-align:center}
+.zlbl{font-family:'JetBrains Mono',monospace;font-size:.65rem;color:#7a7068;min-width:38px;text-align:center}
+.pdf-scroll{flex:1;overflow:auto;display:flex;justify-content:center;padding:20px;min-height:0}
+.pdf-scroll::-webkit-scrollbar{width:6px;height:6px}
+.pdf-scroll::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:3px}
+.drop-zone{width:100%;max-width:420px;align-self:flex-start;border:2px dashed var(--bdr);border-radius:12px;padding:48px 24px;text-align:center;cursor:pointer;transition:all .2s;background:var(--cream)}
+.drop-zone:hover{border-color:var(--amber);background:var(--amber-p)}
+.dz-icon{font-size:40px;margin-bottom:10px}
+.dz-title{font-family:'Noto Serif SC',serif;font-size:.95rem;color:var(--ink2);margin-bottom:5px}
+.dz-sub{font-size:.74rem;color:var(--muted)}
+#cwrap{position:relative;display:none;box-shadow:0 4px 28px rgba(0,0,0,.3)}
+#mc{display:block}
+#hc{position:absolute;top:0;left:0;pointer-events:none}
+#ac{position:absolute;top:0;left:0;pointer-events:none}
+
+/* Annotation labels overlaid on cwrap */
+.ann-label{position:absolute;display:flex;align-items:center;gap:4px;cursor:pointer;z-index:20;animation:fup .2s ease}
+.ann-pill{font-size:.58rem;padding:2px 6px;border-radius:3px;font-family:'JetBrains Mono',monospace;font-weight:600;white-space:nowrap;border:1px solid;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+.ann-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+
+/* ── RIGHT PANEL ── */
+.rp{border-left:1px solid var(--bdr);display:flex;flex-direction:column;overflow:hidden;background:#fff;min-height:0}
+.r-tabs{display:flex;border-bottom:1px solid var(--bdr);flex-shrink:0;background:var(--cream2)}
+.r-tab{flex:1;padding:10px 4px;text-align:center;font-size:.7rem;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;font-weight:500;white-space:nowrap}
+.r-tab:hover{color:var(--ink)}
+.r-tab.active{color:var(--amber);border-bottom-color:var(--amber);background:#fff}
+.r-pane{display:none;flex:1;flex-direction:column;overflow:hidden;min-height:0}
+.r-pane.active{display:flex}
+
+/* ── MINDMAP PANE ── */
+.mm-bc{display:flex;align-items:center;gap:3px;padding:8px 12px;border-bottom:1px solid var(--bdr);background:var(--cream2);flex-shrink:0;flex-wrap:wrap;min-height:36px}
+.mm-bc-item{font-size:.68rem;color:var(--muted2);cursor:pointer;font-family:'JetBrains Mono',monospace;padding:1px 4px;border-radius:3px;transition:all .12s;max-width:90px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mm-bc-item:hover{color:var(--amber);background:var(--amber-l)}
+.mm-bc-item.active{color:var(--ink);font-weight:600;cursor:default}
+.mm-bc-sep{font-size:.65rem;color:var(--bdr);flex-shrink:0}
+.mm-scroll{flex:1;overflow-y:auto;padding:14px;min-height:0}
+.mm-scroll::-webkit-scrollbar{width:4px}
+.mm-scroll::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:2px}
+.mm-empty{text-align:center;padding:40px 16px;color:var(--muted2)}
+.mm-empty .ei{font-size:36px;margin-bottom:10px}
+.mm-empty p{font-size:.78rem;line-height:1.9}
+
+/* Mindmap tree (top-down) */
+.mm-root-node{background:var(--sb);color:#f0ebe3;border-radius:8px;padding:9px 14px;font-size:.82rem;font-weight:700;text-align:center;margin-bottom:14px;font-family:'Noto Serif SC',serif;cursor:pointer;transition:background .15s}
+.mm-root-node:hover{background:var(--sb3)}
+.mm-branches{display:flex;flex-direction:column;gap:6px}
+.mm-branch{border:1.5px solid var(--bdr);border-radius:8px;overflow:hidden;background:var(--cream)}
+.mm-branch-hd{display:flex;align-items:center;gap:7px;padding:8px 10px;cursor:pointer;transition:background .12s;user-select:none}
+.mm-branch-hd:hover{background:var(--amber-p)}
+.mm-branch-tog{font-size:.6rem;color:var(--muted2);transition:transform .15s;flex-shrink:0;width:12px}
+.mm-branch-tog.open{transform:rotate(90deg)}
+.mm-branch-icon{font-size:13px;flex-shrink:0}
+.mm-branch-label{flex:1;font-size:.78rem;font-weight:600;color:var(--ink);line-height:1.3}
+.mm-branch-hd:hover .mm-branch-label{color:var(--amber)}
+.mm-branch-page{font-size:.58rem;font-family:'JetBrains Mono',monospace;color:var(--amber);background:var(--amber-l);padding:1px 5px;border-radius:3px;flex-shrink:0;cursor:pointer;border:1px solid #fcd34d}
+.mm-branch-page:hover{background:var(--amber);color:#fff}
+.mm-children{display:none;padding:4px 8px 8px 28px;border-top:1px solid var(--bdr);background:#fff}
+.mm-children.open{display:block}
+.mm-child{display:flex;align-items:flex-start;gap:6px;padding:5px 6px;border-radius:5px;cursor:pointer;transition:background .12s;border:1px solid transparent}
+.mm-child:hover{background:var(--blue-l);border-color:#bfdbfe}
+.mm-child-dot{font-size:8px;color:var(--muted2);flex-shrink:0;margin-top:5px}
+.mm-child-text{font-size:.74rem;color:var(--ink2);flex:1;line-height:1.4}
+.mm-child:hover .mm-child-text{color:var(--blue)}
+.mm-child-page{font-size:.57rem;font-family:'JetBrains Mono',monospace;color:var(--muted2);flex-shrink:0;margin-top:2px}
+.mm-child-digest{font-size:.6rem;padding:1px 5px;border:1px solid var(--bdr);border-radius:3px;color:var(--muted);cursor:pointer;flex-shrink:0;white-space:nowrap;transition:all .12s;background:#fff}
+.mm-child-digest:hover{border-color:var(--amber);color:var(--amber);background:var(--amber-p)}
+.mm-loading{display:flex;align-items:center;gap:8px;padding:20px;color:var(--muted2);font-size:.76rem;justify-content:center}
+
+/* Typing dots */
+.tind{display:flex;gap:3px;align-items:center}
+.tind span{width:5px;height:5px;border-radius:50%;background:var(--muted2);animation:td 1s infinite}
+.tind span:nth-child(2){animation-delay:.2s}
+.tind span:nth-child(3){animation-delay:.4s}
+@keyframes td{0%,60%,100%{transform:none;background:var(--muted2)}30%{transform:translateY(-4px);background:var(--amber)}}
+
+/* ── DIGEST PANE ── */
+.dg-hd{padding:10px 14px;border-bottom:1px solid var(--bdr);background:var(--cream2);flex-shrink:0;display:flex;align-items:center;gap:8px}
+.dg-hd-title{font-size:.78rem;font-weight:600;color:var(--ink);flex:1}
+.dg-hd-page{font-size:.64rem;font-family:'JetBrains Mono',monospace;color:var(--muted2)}
+.dg-scroll{flex:1;overflow-y:auto;padding:14px;min-height:0}
+.dg-scroll::-webkit-scrollbar{width:4px}
+.dg-scroll::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:2px}
+.dg-empty{text-align:center;padding:40px 16px;color:var(--muted2)}
+.dg-empty .ei{font-size:36px;margin-bottom:10px}
+.dg-empty p{font-size:.78rem;line-height:1.9}
+
+/* Origin snippet box */
+.dg-origin{background:#fefce8;border:1.5px solid #fcd34d;border-radius:7px;padding:10px 12px;margin-bottom:12px;font-size:.74rem;line-height:1.7;color:var(--ink2)}
+.dg-origin-lbl{font-size:.6rem;font-family:'JetBrains Mono',monospace;color:var(--amber);margin-bottom:4px;font-weight:600}
+.dg-origin-hl{background:#fde68a;padding:1px 3px;border-radius:3px}
+.dg-origin-btn{margin-left:8px;font-size:.6rem;color:var(--blue);cursor:pointer;text-decoration:underline}
+.dg-origin-btn:hover{color:var(--amber)}
+
+/* Para cards */
+.pc{border-radius:8px;padding:10px 12px;margin-bottom:7px;border-left:3px solid;font-size:.75rem;line-height:1.6}
+.pc.concept{background:var(--blue-l);border-color:var(--blue)}
+.pc.example{background:var(--green-l);border-color:var(--green)}
+.pc.theory{background:var(--purple-l);border-color:var(--purple)}
+.pc.formula{background:var(--amber-l);border-color:var(--amber)}
+.pc.caution{background:var(--rose-l);border-color:var(--rose)}
+.ptag{display:inline-flex;align-items:center;gap:3px;font-size:.58rem;padding:1px 5px;border-radius:3px;margin-bottom:4px;font-family:'JetBrains Mono',monospace}
+.pc.concept .ptag{background:var(--blue);color:#fff}
+.pc.example .ptag{background:var(--green);color:#fff}
+.pc.theory .ptag{background:var(--purple);color:#fff}
+.pc.formula .ptag{background:var(--amber);color:#fff}
+.pc.caution .ptag{background:var(--rose);color:#fff}
+.pc-text{color:var(--ink2);margin-bottom:4px}
+.pc-snippet{font-size:.67rem;color:var(--muted);font-style:italic;padding:3px 6px;background:rgba(0,0,0,.04);border-radius:4px;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between;gap:6px}
+.pc-hl{font-size:.6rem;color:var(--blue);cursor:pointer;text-decoration:underline;flex-shrink:0}
+.pc-hl:hover{color:var(--amber)}
+.pc-src{font-size:.64rem;color:var(--muted2);cursor:pointer;display:inline-flex;align-items:center;gap:3px}
+.pc-src:hover{color:var(--amber)}
+.dg-sec{margin-bottom:16px}
+.dg-sec-hd{display:flex;align-items:center;gap:7px;margin-bottom:7px;padding-bottom:5px;border-bottom:1px solid var(--bdr)}
+.dg-sec-icon{width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0}
+.dg-sec-title{font-size:.75rem;font-weight:700;color:var(--ink)}
+.gl-item{padding:6px 0;border-bottom:1px solid var(--bdr);display:flex;flex-direction:column;gap:2px}
+.gl-item:last-child{border-bottom:none}
+.gl-zh{font-size:.78rem;font-weight:600;color:var(--ink)}
+.gl-en{font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--amber)}
+.gl-def{font-size:.7rem;color:var(--muted);line-height:1.5}
+
+/* ── QUESTIONS PANE ── */
+.q-tb{padding:9px 12px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:6px;flex-shrink:0;background:var(--cream2)}
+.q-tb-title{font-size:.72rem;color:var(--muted);flex:1}
+.abtn{padding:4px 10px;border-radius:5px;font-size:.68rem;cursor:pointer;font-family:'Noto Sans SC',sans-serif;border:1px solid;transition:all .15s;white-space:nowrap}
+.abtn.amber{background:var(--amber);border-color:var(--amber);color:#fff}
+.abtn.amber:hover{background:#b45309}
+.abtn.ghost{background:#fff;border-color:var(--bdr);color:var(--ink2)}
+.abtn.ghost:hover{border-color:var(--amber);color:var(--amber)}
+.q-prg{padding:5px 12px 7px;background:var(--cream2);border-bottom:1px solid var(--bdr);flex-shrink:0}
+.q-prg-bar{height:3px;background:var(--bdr);border-radius:2px;overflow:hidden;margin:3px 0}
+.q-prg-fill{height:100%;background:var(--amber);border-radius:2px;transition:width .3s}
+.q-prg-txt{font-size:.6rem;color:var(--muted2)}
+.q-scroll{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:7px;min-height:0}
+.q-scroll::-webkit-scrollbar{width:4px}
+.q-scroll::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:2px}
+.q-empty{text-align:center;padding:36px 14px;color:var(--muted2)}
+.q-empty .ei{font-size:30px;margin-bottom:8px}
+.q-empty p{font-size:.75rem;line-height:1.8}
+.qcard{background:var(--cream);border:1.5px solid var(--bdr);border-radius:9px;overflow:hidden;transition:all .15s}
+.qcard.active{border-color:var(--amber)}
+.qcard.correct{border-color:var(--green)}
+.qcard.wrong{border-color:var(--rose)}
+.qcard-hd{padding:9px 11px;display:flex;align-items:flex-start;gap:7px;cursor:pointer}
+.qidx{font-family:'JetBrains Mono',monospace;font-size:.58rem;background:var(--cream2);color:var(--muted);padding:2px 5px;border-radius:3px;flex-shrink:0;margin-top:1px}
+.qcard.active .qidx{background:var(--amber);color:#fff}
+.qcard.correct .qidx{background:var(--green);color:#fff}
+.qcard.wrong .qidx{background:var(--rose);color:#fff}
+.qtxt{font-size:.77rem;color:var(--ink);flex:1;line-height:1.4}
+.qtag{font-size:.57rem;padding:2px 5px;border-radius:3px;flex-shrink:0;font-family:'JetBrains Mono',monospace}
+.qtag.choice{background:var(--blue-l);color:var(--blue)}
+.qtag.essay{background:var(--amber-l);color:#92400e}
+.qsrc{padding:0 11px 7px 26px;display:flex;align-items:center;gap:5px}
+.qpchip{font-size:.6rem;font-family:'JetBrains Mono',monospace;background:var(--amber-l);color:#92400e;border:1px solid #fcd34d;border-radius:4px;padding:1px 5px;cursor:pointer;transition:all .12s}
+.qpchip:hover{background:var(--amber);color:#fff;border-color:var(--amber)}
+.qbody{padding:0 11px 11px;display:none}
+.opts{display:flex;flex-direction:column;gap:4px}
+.obtn{width:100%;text-align:left;padding:6px 9px;border-radius:5px;border:1px solid var(--bdr);background:#fff;cursor:pointer;font-size:.73rem;color:var(--ink2);display:flex;gap:6px;align-items:flex-start;font-family:'Noto Sans SC',sans-serif;transition:all .12s;line-height:1.4}
+.obtn:hover:not(:disabled){border-color:var(--amber);background:var(--amber-p)}
+.obtn.correct{border-color:var(--green);background:var(--green-l);color:#065f46}
+.obtn.wrong{border-color:var(--rose);background:var(--rose-l);color:#9f1239}
+.obtn:disabled{cursor:default}
+.okey{font-family:'JetBrains Mono',monospace;font-size:.64rem;flex-shrink:0;margin-top:1px;opacity:.5}
+.essay-in{width:100%;background:#fff;border:1px solid var(--bdr);border-radius:6px;padding:7px 9px;font-size:.75rem;font-family:'Noto Sans SC',sans-serif;color:var(--ink);resize:none;min-height:54px;transition:border-color .2s;line-height:1.6}
+.essay-in:focus{outline:none;border-color:var(--amber)}
+.ans-box{margin-top:6px;background:var(--green-l);border:1px solid #a7f3d0;border-radius:6px;padding:7px 10px;font-size:.72rem;color:#065f46;line-height:1.6;display:none}
+.ans-box.show{display:block}
+.ai-exp{margin-top:6px;background:var(--amber-p);border:1px solid #fcd34d;border-radius:6px;padding:7px 10px;font-size:.72rem;color:var(--ink2);line-height:1.6;display:none}
+.ai-exp.show{display:block}
+.ai-exp-lbl{font-weight:700;color:#92400e;margin-bottom:3px;font-size:.7rem}
+
+/* ── CHAT PANE ── */
+.chat-msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:9px;min-height:0}
+.chat-msgs::-webkit-scrollbar{width:4px}
+.chat-msgs::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:2px}
+.cmsg{display:flex;gap:7px;align-items:flex-start;animation:fup .2s ease}
+@keyframes fup{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.cmsg.user{flex-direction:row-reverse}
+.cav{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0}
+.cmsg.ai .cav{background:var(--amber-l);border:1px solid #fcd34d}
+.cmsg.user .cav{background:var(--blue-l);border:1px solid #bfdbfe}
+.cbub{max-width:90%;background:var(--cream);border:1px solid var(--bdr);border-radius:9px;padding:8px 11px;font-size:.76rem;line-height:1.65;color:var(--ink)}
+.cmsg.user .cbub{background:var(--blue-l);border-color:#bfdbfe}
+.cbub code{background:var(--cream2);padding:1px 4px;border-radius:3px;font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--amber)}
+.chat-foot{border-top:1px solid var(--bdr);padding:9px 11px;flex-shrink:0;background:var(--cream2)}
+.qchips{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:7px}
+.qchip{background:#fff;border:1px solid var(--bdr);border-radius:20px;padding:2px 8px;font-size:.64rem;color:var(--muted);cursor:pointer;transition:all .12s}
+.qchip:hover{border-color:var(--amber);color:var(--amber);background:var(--amber-p)}
+.chat-row{display:flex;gap:6px;align-items:flex-end}
+.chat-ta{flex:1;background:#fff;border:1px solid var(--bdr);border-radius:7px;padding:7px 9px;font-size:.77rem;font-family:'Noto Sans SC',sans-serif;color:var(--ink);resize:none;min-height:34px;max-height:96px;transition:border-color .2s;line-height:1.5}
+.chat-ta:focus{outline:none;border-color:var(--amber)}
+.chat-ta::placeholder{color:var(--muted2)}
+.sbtn{width:32px;height:32px;background:var(--amber);border:none;border-radius:7px;cursor:pointer;font-size:13px;color:#fff;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0}
+.sbtn:hover{background:#b45309}
+.sbtn:disabled{background:var(--bdr);cursor:not-allowed}
+
+/* ── MODAL ── */
+.modal-ov{position:fixed;inset:0;background:rgba(28,25,23,.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:500}
+.modal{background:#fff;border-radius:14px;padding:26px;width:400px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.modal-title{font-family:'Noto Serif SC',serif;font-size:1rem;font-weight:700;margin-bottom:5px}
+.modal-sub{font-size:.74rem;color:var(--muted);margin-bottom:16px;line-height:1.6}
+.udrop{border:2px dashed var(--bdr);border-radius:10px;padding:26px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:12px}
+.udrop:hover,.udrop.drag{border-color:var(--amber);background:var(--amber-p)}
+.ud-icon{font-size:30px;margin-bottom:6px}
+.ud-text{font-size:.78rem;color:var(--ink2);margin-bottom:2px}
+.ud-sub{font-size:.68rem;color:var(--muted)}
+.uprog{margin-top:10px;display:none}
+.upbar-wrap{height:4px;background:var(--bdr);border-radius:2px;overflow:hidden}
+.upbar{height:100%;background:var(--amber);border-radius:2px;transition:width .3s}
+.upt{font-size:.68rem;color:var(--muted);margin-top:4px}
+.modal-btns{display:flex;gap:7px;justify-content:flex-end;margin-top:12px}
+.mbtn{padding:6px 14px;border-radius:6px;font-size:.74rem;cursor:pointer;font-family:'Noto Sans SC',sans-serif;border:1px solid;transition:all .15s}
+.mbtn.ghost{border-color:var(--bdr);color:var(--muted);background:#fff}
+.mbtn.ghost:hover{border-color:var(--ink);color:var(--ink)}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:18px;right:18px;background:var(--ink);color:#f0ebe3;border-radius:7px;padding:9px 14px;font-size:.75rem;z-index:999;box-shadow:0 4px 20px rgba(0,0,0,.25);animation:ts .2s ease;max-width:300px}
+@keyframes ts{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.toast.ok{background:#064e3b}
+.toast.err{background:#7f1d1d}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="logo">学霸机器<span>·</span></div>
+  <div class="vdiv"></div>
+  <span class="tl">API KEY</span>
+  <input class="api-in" id="apiKey" type="password" placeholder="sk-ant-... 或 DeepSeek key">
+  <select class="mdl-sel" id="modelSel">
+    <option value="claude">Claude Haiku</option>
+    <option value="deepseek">DeepSeek-V3</option>
+  </select>
+  <div class="status-pill"><div class="sdot" id="sdot"></div><span id="stxt">未连接</span></div>
+  <div class="spill"></div>
+  <button class="tbtn" onclick="openModal('pdf')">📄 上传课本</button>
+  <button class="tbtn" onclick="openModal('q')">📝 上传题目</button>
+  <button class="tbtn hi" id="analyzeBtn" style="display:none" onclick="analyzeCurrentPage()">✨ 分析本页</button>
+</div>
+
+<!-- WORKSPACE -->
+<div class="ws">
+
+  <!-- LEFT: OUTLINE -->
+  <div class="sidebar">
+    <div class="sb-hd"><div class="sb-label">目录 · 点击跳转</div></div>
+    <div class="outline-scroll" id="outlineScroll">
+      <div class="no-outline">上传课本后<br>自动显示目录树</div>
+    </div>
+  </div>
+
+  <!-- CENTER: PDF -->
+  <div class="pdf-panel">
+    <div class="pdf-tb">
+      <span class="pdf-title" id="pdfTitle">未上传课本</span>
+      <div class="pnav">
+        <button class="nbtn" onclick="goPage(-1)">‹</button>
+        <span class="pnum" id="pnum">— / —</span>
+        <button class="nbtn" onclick="goPage(1)">›</button>
+      </div>
+      <div class="pnav" style="gap:4px">
+        <button class="nbtn" onclick="changeZoom(-.15)">−</button>
+        <span class="zlbl" id="zoomLbl">120%</span>
+        <button class="nbtn" onclick="changeZoom(.15)">+</button>
+      </div>
+    </div>
+    <div class="pdf-scroll" id="pdfScroll">
+      <div class="drop-zone" id="dropZone" onclick="openModal('pdf')"
+        ondragover="event.preventDefault();this.style.borderColor='#d97706'"
+        ondragleave="this.style.borderColor=''"
+        ondrop="handleDrop(event,'pdf')">
+        <div class="dz-icon">📚</div>
+        <div class="dz-title">上传专业课教材 PDF</div>
+        <div class="dz-sub">点击或拖拽 · 本地处理，不上传服务器</div>
+      </div>
+      <div id="cwrap"><canvas id="mc"></canvas><canvas id="hc"></canvas><canvas id="ac"></canvas></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: PANELS -->
+  <div class="rp">
+    <div class="r-tabs">
+      <div class="r-tab active" id="tab-mindmap" onclick="switchTab('mindmap')">🗺 思维导图</div>
+      <div class="r-tab" id="tab-digest" onclick="switchTab('digest')">📖 段落精读</div>
+      <div class="r-tab" id="tab-questions" onclick="switchTab('questions')">🎯 做题</div>
+      <div class="r-tab" id="tab-chat" onclick="switchTab('chat')">💬 问AI</div>
+    </div>
+
+    <!-- MINDMAP -->
+    <div class="r-pane active" id="pane-mindmap">
+      <div class="mm-bc" id="mmBc"></div>
+      <div class="mm-scroll" id="mmScroll">
+        <div id="mmEmpty" class="mm-empty">
+          <div class="ei">🗺</div>
+          <p>点击左侧目录任意节点<br>自动生成该层级思维导图<br><br>
+          <span style="font-size:.68rem;color:var(--bdr)">书签层级直接显示<br>最底层小节才调 AI</span></p>
+        </div>
+        <div id="mmTree"></div>
+      </div>
+    </div>
+
+    <!-- DIGEST -->
+    <div class="r-pane" id="pane-digest">
+      <div class="dg-hd" id="dgHd" style="display:none">
+        <span class="dg-hd-title" id="dgHdTitle">段落精读</span>
+        <span class="dg-hd-page" id="dgHdPage"></span>
+      </div>
+      <div class="dg-scroll">
+        <div id="dgEmpty" class="dg-empty">
+          <div class="ei">📖</div>
+          <p>点击思维导图中的概念<br>再点「精读」按钮<br>跳转并显示段落分析</p>
+        </div>
+        <div id="dgContent"></div>
+      </div>
+    </div>
+
+    <!-- QUESTIONS -->
+    <div class="r-pane" id="pane-questions">
+      <div class="q-tb">
+        <span class="q-tb-title" id="qTbTitle">题目列表</span>
+        <button class="abtn ghost" onclick="openModal('q')">+ 上传</button>
+        <button class="abtn amber" onclick="generateQuestions()">✨ AI出题</button>
+      </div>
+      <div class="q-prg">
+        <div class="q-prg-bar"><div class="q-prg-fill" id="qPrgFill" style="width:0%"></div></div>
+        <div class="q-prg-txt" id="qPrgTxt">0 / 0 题</div>
+      </div>
+      <div class="q-scroll" id="qScroll">
+        <div id="qEmpty" class="q-empty"><div class="ei">📋</div><p>上传历年题目（TXT/JSON）<br>或点 AI出题 自动生成</p></div>
+      </div>
+    </div>
+
+    <!-- CHAT -->
+    <div class="r-pane" id="pane-chat">
+      <div class="chat-msgs" id="chatMsgs">
+        <div class="cmsg ai">
+          <div class="cav">🎓</div>
+          <div class="cbub">你好！上传课本后，点击左侧目录节点即可生成对应章节的思维导图。点击思维导图中的概念再选「精读」可以深入分析 📖</div>
+        </div>
+      </div>
+      <div class="chat-foot">
+        <div class="qchips">
+          <div class="qchip" onclick="quickSend('用大白话解释当前页')">💡 大白话</div>
+          <div class="qchip" onclick="quickSend('当前页最重要的考点是什么？')">🎯 考点</div>
+          <div class="qchip" onclick="quickSend('这页有什么容易混淆的概念？')">⚠️ 易错</div>
+          <div class="qchip" onclick="quickSend('帮我出3道选择题考考我')">📝 出题</div>
+        </div>
+        <div class="chat-row">
+          <textarea class="chat-ta" id="chatTa" rows="1" placeholder="问任何不懂的…"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"
+            oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,96)+'px'"></textarea>
+          <button class="sbtn" id="sendBtn" onclick="sendChat()">➤</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-ov" id="modalOv" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal">
+    <div class="modal-title" id="modalTitle">上传</div>
+    <div class="modal-sub" id="modalSub"></div>
+    <div class="udrop" id="udrop"
+      ondragover="event.preventDefault();this.classList.add('drag')"
+      ondragleave="this.classList.remove('drag')"
+      ondrop="handleDrop(event,uploadType)"
+      onclick="document.getElementById('fileIn').click()">
+      <div class="ud-icon" id="udIcon">📄</div>
+      <div class="ud-text" id="udText">点击选择文件</div>
+      <div class="ud-sub" id="udSub"></div>
+    </div>
+    <div class="uprog" id="uprog">
+      <div class="upbar-wrap"><div class="upbar" id="upbar" style="width:0%"></div></div>
+      <div class="upt" id="upt">处理中...</div>
+    </div>
+    <div class="modal-btns">
+      <button class="mbtn ghost" onclick="document.getElementById('modalOv').style.display='none'">取消</button>
+    </div>
+  </div>
+</div>
+<input type="file" id="fileIn" style="display:none" onchange="fileChosen(event)">
+
+<script>
+const _pdfjsVer = (window.pdfjsLib && pdfjsLib.version) ? pdfjsLib.version : '3.11.174';
+pdfjsLib.GlobalWorkerOptions.workerSrc=`https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${_pdfjsVer}/pdf.worker.min.js`;
+
+/* ════════════════════════════════════════
+   STATE
+════════════════════════════════════════ */
+let pdfDoc=null, curPage=1, zoomLv=1.2;
+let pageTexts={};      // pageNum → full text string
+let pageItems={};      // pageNum → [{str,transform,width,height}] for highlight
+let pageLines={};      // pageNum → reconstructed lines (top→bottom)
+let outlineFlat=[];    // flat list for page-sync: [{title,page,level}]
+let questions=[], chatHistory=[];
+let uploadType='pdf';
+const mmCache=new Map(); // cacheKey→{root,branches} mindmap data
+const CFG={
+  mindmapMaxPages: 48,
+  mindmapMaxChars: 12000,
+  digestMaxPages: 18,
+  digestMaxChars: 9000,
+  matchMaxQuestions: 28,
+  matchCandidates: 6,
+  deepseekBase: 'https://api.deepseek.com/v1',
+  deepseekModel: 'deepseek-chat',
+  claudeModel: 'claude-haiku-4-5-20251001',
+};
+let _pageIndexCache = {};
+let _pageSigCache = {};
+let _modelLocked = false;
+let _lastVp = null;
+let _lastVpPage = null;
+let _printedOffset = null;
+let _textCoverage = 1;
+let _tocHintPages = [];
+let _ocrQueue = Promise.resolve();
+let _ocrWorker = null;
+let _ocrWorkerLang = '';
+let _ocrJobByPage = {};
+let _ocrCache = {};
+let _ocrEnabled = true;
+let _ocrCacheKeys = [];
+let _largeMode = false;
+let _pdfFileSize = 0;
+let _tessLoadPromise = null;
+
+function _qsBool(v){ return v===true || v==='1' || v==='true' || v==='yes'; }
+function _qsInt(v, def){ const n=parseInt(v); return Number.isFinite(n)?n:def; }
+function _applyCfgFromQuery(){
+  const sp=new URLSearchParams(location.search);
+  if(sp.has('mindmapMaxPages')) CFG.mindmapMaxPages=_qsInt(sp.get('mindmapMaxPages'), CFG.mindmapMaxPages);
+  if(sp.has('mindmapMaxChars')) CFG.mindmapMaxChars=_qsInt(sp.get('mindmapMaxChars'), CFG.mindmapMaxChars);
+  if(sp.has('digestMaxPages')) CFG.digestMaxPages=_qsInt(sp.get('digestMaxPages'), CFG.digestMaxPages);
+  if(sp.has('digestMaxChars')) CFG.digestMaxChars=_qsInt(sp.get('digestMaxChars'), CFG.digestMaxChars);
+  if(sp.has('matchMaxQuestions')) CFG.matchMaxQuestions=_qsInt(sp.get('matchMaxQuestions'), CFG.matchMaxQuestions);
+  if(sp.has('matchCandidates')) CFG.matchCandidates=_qsInt(sp.get('matchCandidates'), CFG.matchCandidates);
+  if(sp.has('deepseekBase')) CFG.deepseekBase=sp.get('deepseekBase')||CFG.deepseekBase;
+  if(sp.has('deepseekModel')) CFG.deepseekModel=sp.get('deepseekModel')||CFG.deepseekModel;
+  if(sp.has('claudeModel')) CFG.claudeModel=sp.get('claudeModel')||CFG.claudeModel;
+}
+_applyCfgFromQuery();
+
+function normalizeForMatch(s){
+  return (s||'')
+    .toLowerCase()
+    .replace(/[\s\u00A0\u2000-\u200B]+/g,'')
+    .replace(/[“”‘’"'`~!@#$%^&*()（）\[\]【】{}<>《》.,，。:：;；?？/\\|+=\-—_·•…]+/g,'')
+    .replace(/[\u3000]/g,'');
+}
+function normalizeTitle(s){
+  let t=(s||'').trim();
+  t=t.replace(/[\u3000\s]+/g,' ');
+  t=t.replace(/^[\s]*(第\s*[一二三四五六七八九十百零\d]+\s*(篇|章|节)|chapter\s*\d+|part\s*\d+|unit\s*\d+|section\s*\d+|§\s*\d+([\-\.]\d+){0,3})\s*[:：.\-－—]?\s*/i,'');
+  t=t.replace(/^[\s]*(\d{1,3}([.\-－—]\d{1,3}){0,3})\s*[:：.\-－—]?\s*/,'');
+  return t.trim();
+}
+function titleSig(s){
+  return normalizeForMatch(normalizeTitle(s)).replace(/[^\u4e00-\u9fff0-9a-z]+/g,'');
+}
+function bigramSet(s){
+  const t=titleSig(s);
+  const set=new Set();
+  for(let i=0;i<t.length-1;i++) set.add(t.slice(i,i+2));
+  return set;
+}
+function jaccard(a,b){
+  if(!a.size || !b.size) return 0;
+  let inter=0;
+  for(const x of a) if(b.has(x)) inter++;
+  return inter / (a.size + b.size - inter);
+}
+function findBestOutlineMatch(label, pageNum){
+  const labRaw=label||'';
+  const labSig=titleSig(labRaw);
+  const labSet=bigramSet(labRaw);
+  let best=null, bestScore=-1;
+  for(const f of outlineFlat){
+    if(!f?.raw) continue;
+    const fsig=titleSig(f.title||'');
+    if(!fsig) continue;
+    let score=0;
+    if(fsig===labSig) score+=120;
+    else if(fsig.includes(labSig) || labSig.includes(fsig)) score+=85;
+    else score+=Math.round(jaccard(labSet, bigramSet(f.title||''))*70);
+    if(pageNum && f.page){
+      const dp=Math.abs((parseInt(f.page)||0) - (parseInt(pageNum)||0));
+      score+=Math.max(0, 22 - dp);
+    }
+    if(score>bestScore){ bestScore=score; best=f; }
+  }
+  return bestScore>=70 ? best : null;
+}
+function buildPageIndex(pageNum){
+  const items=pageItems[pageNum];
+  if(!items?.length) return {full:'', map:[], itemX:[], itemY:[]};
+  let full='', map=[], itemX=[], itemY=[];
+  items.forEach((it,ii)=>{
+    const raw=(it.str||'');
+    const norm=normalizeForMatch(raw);
+    const x=(it.transform?.[4]||0);
+    const y=(it.transform?.[5]||0);
+    for(const c of norm){
+      full+=c;
+      map.push(ii);
+    }
+    itemX[ii]=x;
+    itemY[ii]=y;
+  });
+  return {full, map, itemX, itemY};
+}
+function getPageIndex(pageNum){
+  if(_pageIndexCache[pageNum]) return _pageIndexCache[pageNum];
+  const idx=buildPageIndex(pageNum);
+  _pageIndexCache[pageNum]=idx;
+  return idx;
+}
+function itemsToLines(items){
+  return itemsToLinesTol(items, null);
+}
+function itemsToLinesTol(items, forcedTol){
+  if(!items?.length) return [];
+  const rows=[];
+  let tol=forcedTol;
+  if(!tol){
+    const hs=items.map(it=>Math.abs(it.transform?.[3]||0)).filter(n=>n>0).sort((a,b)=>a-b);
+    const med=hs.length?hs[Math.floor(hs.length/2)]:3;
+    tol=Math.max(2.2, med*0.55);
+  }
+  for(const it of items){
+    const y=it.transform?.[5];
+    const x=it.transform?.[4];
+    if(y===undefined||x===undefined) continue;
+    let row=rows.find(r=>Math.abs(r.y-y)<=tol);
+    if(!row){ row={y, items:[]}; rows.push(row); }
+    row.items.push({x, str:it.str||'', w:it.width||0});
+  }
+  rows.sort((a,b)=>b.y-a.y);
+  const lines=[];
+  for(const r of rows){
+    r.items.sort((a,b)=>a.x-b.x);
+    let line='';
+    let lastX=null, lastW=0;
+    for(const it of r.items){
+      const s=(it.str||'');
+      if(!s) continue;
+      if(lastX!==null){
+        const gap=it.x - (lastX + lastW);
+        if(gap>8) line+=' ';
+      }
+      line+=s;
+      lastX=it.x; lastW=it.w||0;
+    }
+    const t=line.replace(/\s+/g,' ').trim();
+    if(t) lines.push(t);
+  }
+  return lines;
+}
+
+function itemBoxOnCanvas(it, vp){
+  try{
+    if(!vp || !it?.transform) return null;
+    const x=it.transform[4]||0;
+    const y=it.transform[5]||0;
+    const fs=Math.max(1, Math.abs(it.transform[3]||it.transform[0]||10));
+    const wPdf=Math.max(1, (it.width||1));
+    const rect=vp.convertToViewportRectangle([x, y, x+wPdf, y+fs]);
+    const left=Math.min(rect[0], rect[2]);
+    const right=Math.max(rect[0], rect[2]);
+    const top=Math.min(rect[1], rect[3]);
+    const bottom=Math.max(rect[1], rect[3]);
+    const w=Math.max(1, right-left);
+    const h=Math.max(1, bottom-top);
+    return {x:left, y:bottom, w, h, top, bottom};
+  }catch(e){ return null; }
+}
+function getHeadingCandidates(pageNum){
+  const out=[];
+  const items=pageItems[pageNum]||[];
+  if(items.length){
+    const ys=items.map(it=>it.transform?.[5]).filter(Number.isFinite);
+    if(ys.length){
+      const maxY=Math.max(...ys), minY=Math.min(...ys);
+      const band=Math.max(80, (maxY-minY)*0.22);
+      const topItems=items.filter(it=>Number.isFinite(it.transform?.[5]) && it.transform[5] >= (maxY-band));
+      const hs=topItems.map(it=>Math.abs(it.transform?.[3]||0)).filter(n=>n>0).sort((a,b)=>a-b);
+      const med=hs.length?hs[Math.floor(hs.length/2)]:3;
+      const tol=Math.max(3.5, med*0.75);
+      itemsToLinesTol(topItems, tol).slice(0,12).forEach(l=>out.push(l));
+    }
+  }
+  const body=(pageLines[pageNum]&&pageLines[pageNum].length)?pageLines[pageNum]:(pageTexts[pageNum]||'').split(/\n|\r/);
+  body.slice(0,26).forEach(l=>out.push(l));
+  const seen=new Set();
+  const cleaned=[];
+  for(const l of out){
+    const t=(l||'').replace(/\s+/g,' ').trim();
+    if(t.length<2 || t.length>110) continue;
+    const sig=titleSig(t);
+    if(!sig) continue;
+    if(seen.has(sig)) continue;
+    seen.add(sig);
+    cleaned.push(t);
+    if(cleaned.length>=30) break;
+  }
+  return cleaned;
+}
+
+async function inferPrintedOffset(){
+  const offsets=[];
+  const cap = _largeMode ? 80 : 260;
+  const maxPages=Math.min(pdfDoc?.numPages||0, cap);
+  for(let p=1;p<=maxPages;p++){
+    try{ await ensureTextLayer(p); }catch(e){}
+    const items=pageItems[p];
+    if(!items?.length) continue;
+    const ys=items.map(it=>it.transform?.[5]).filter(Number.isFinite);
+    if(!ys.length) continue;
+    const maxY=Math.max(...ys), minY=Math.min(...ys);
+    const band=Math.max(70, (maxY-minY)*0.22);
+    const topItems=items.filter(it=>{
+      const y=it.transform?.[5];
+      const x=it.transform?.[4];
+      if(!Number.isFinite(y) || !Number.isFinite(x)) return false;
+      return y >= (maxY-band);
+    });
+    const digits=topItems.filter(it=>/^\d{1,4}$/.test((it.str||'').trim()));
+    if(!digits.length) continue;
+    digits.sort((a,b)=>(b.transform?.[4]||0)-(a.transform?.[4]||0));
+    const n=parseInt((digits[0].str||'').trim());
+    if(!Number.isFinite(n) || n<=0 || n>9999) continue;
+    const off=p-n;
+    if(Math.abs(off)>80) continue;
+    offsets.push(off);
+  }
+  if(!offsets.length) return null;
+  const freq=new Map();
+  offsets.forEach(o=>freq.set(o,(freq.get(o)||0)+1));
+  let best=null, bestCnt=0;
+  for(const [o,c] of freq.entries()){
+    if(c>bestCnt){ bestCnt=c; best=o; }
+  }
+  return best;
+}
+
+function tocPageToPdfPage(n){
+  const pn=parseInt(n);
+  if(!Number.isFinite(pn)) return null;
+  if(_printedOffset===null) return Math.max(1, Math.min(pn, pdfDoc.numPages));
+  const guess=pn+_printedOffset;
+  if(guess<1 || guess>pdfDoc.numPages) return Math.max(1, Math.min(pn, pdfDoc.numPages));
+  return guess;
+}
+
+async function buildOutlineFromTOC(allowOcr=false){
+  const maxScan=Math.min(pdfDoc.numPages, 35);
+  const tocPages=[];
+  let tocStart=null;
+  for(let p=1;p<=maxScan;p++){
+    if(!pageTexts[p]){ try{ await ensureTextLayer(p); }catch(e){} }
+    if(allowOcr && _ocrEnabled && (!pageTexts[p] || pageTexts[p].replace(/\s+/g,'').length<40)){
+      try{ await ensurePageText(p, 'toc_detect'); }catch(e){}
+    }
+    const lines=(pageLines[p]&&pageLines[p].length)?pageLines[p]:(pageTexts[p]||'').split(/\n|\r/);
+    const joined=lines.join(' ');
+    const hasToc=/目录|目\s*录|contents/i.test(joined);
+    let score=0;
+    const cand=lines.map(l=>(l||'').replace(/\s+/g,' ').trim()).filter(l=>l.length>2&&l.length<160);
+    for(const ln of cand){
+      const s=ln.replace(/\s+/g,' ').trim();
+      if(/\b\d{1,4}\b$/.test(s) && (/[.…·\.]{2,}/.test(s) || /\s{2,}\d{1,4}$/.test(ln))) score++;
+      if(/第\s*[一二三四五六七八九十百零\d]+\s*(章|节|篇)/.test(s)) score+=0.35;
+      if(/^\d{1,3}(\.\d{1,3}){1,3}\s+/.test(s)) score+=0.35;
+    }
+    if(hasToc || score>=10){
+      if(tocStart===null) tocStart=p;
+      tocPages.push(p);
+    }
+    if(tocStart!==null && p>=tocStart+4) break;
+  }
+  if(!tocPages.length) return null;
+  const entries=[];
+  const seen=new Set();
+
+  function cleanTocLine(s){
+    let t=(s||'').replace(/\s+/g,' ').trim();
+    t=t.replace(/…{2,}/g,'...').replace(/·{2,}/g,'...').replace(/\.{2,}/g,'...');
+    t=t.replace(/[：:]\s*$/,'');
+    return t;
+  }
+  function digitRatio(s){
+    const t=(s||'').replace(/\s+/g,'');
+    if(!t) return 1;
+    const d=(t.match(/\d/g)||[]).length;
+    return d / t.length;
+  }
+  function looksLikeTocTitle(title){
+    const t=(title||'').trim();
+    if(t.length<3 || t.length>90) return false;
+    if(/[A-Za-z]{8,}/.test(t) && !/[A-Za-z]{2,}\s+[A-Za-z]{2,}/.test(t) && !/802\.11/.test(t)) return false;
+    if(digitRatio(t) > 0.28) return false;
+    const rest=t.replace(/^(第\s*[一二三四五六七八九十百零\d]+\s*(篇|章|节)|chapter\s*\d+|part\s*\d+|unit\s*\d+)\s*/i,'');
+    if(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(rest)) return false;
+    if(/\d{1,3}\.\d{1,3}\.\d{1,3}\s+\d{1,3}\.\d{1,3}/.test(rest)) return false;
+    return true;
+  }
+
+  function parseLine(line){
+    let s=cleanTocLine(line);
+    if(!s || s.length>200) return null;
+    if(/^目录$|^contents$/i.test(s)) return null;
+
+    let m=s.match(/^(\d{1,3}(?:\.\d{1,3}){0,4})\s+(.+?)\s*(?:\.{2,}|…{2,}|·{2,}|\s{2,})\s*(\d{1,4})\s*$/);
+    if(m){
+      const num=m[1];
+      const title=(num+' '+m[2]).trim();
+      const prn=parseInt(m[3]);
+      if(!Number.isFinite(prn) || prn<=0 || prn>9999) return null;
+      const page=tocPageToPdfPage(prn);
+      const depth=num.split('.').length;
+      if(!looksLikeTocTitle(title)) return null;
+      return {title,page,prn,level:Math.max(0, depth-1)};
+    }
+
+    m=s.match(/^(第\s*[一二三四五六七八九十百零\d]+\s*(篇|章|节))\s*(.+?)\s*(?:\.{2,}|…{2,}|·{2,}|\s{2,})\s*(\d{1,4})\s*$/);
+    if(m){
+      const head=m[1].trim();
+      const k=m[2];
+      const rest=(m[3]||'').trim();
+      const title=(head+(rest?(' '+rest):'')).trim();
+      const prn=parseInt(m[4]);
+      if(!Number.isFinite(prn) || prn<=0 || prn>9999) return null;
+      const page=tocPageToPdfPage(prn);
+      const level=(k==='篇')?0:(k==='章')?1:2;
+      if(!looksLikeTocTitle(title)) return null;
+      return {title,page,prn,level};
+    }
+
+    m=s.match(/^(.+?)\s*(?:\.{2,}|…{2,}|·{2,}|\s{2,})\s*(\d{1,4})\s*$/);
+    if(m){
+      const left=(m[1]||'').trim();
+      const prn=parseInt(m[2]);
+      if(!left || left.length<4) return null;
+      if(!Number.isFinite(prn) || prn<=0 || prn>9999) return null;
+      const page=tocPageToPdfPage(prn);
+      if(!page) return null;
+      const level=/篇/.test(left)?0:/章/.test(left)?1:/节/.test(left)?2:2;
+      if(!looksLikeTocTitle(left)) return null;
+      return {title:left,page,prn,level};
+    }
+    return null;
+  }
+
+  for(const p of tocPages){
+    if(!pageTexts[p]){ try{ await ensureTextLayer(p); }catch(e){} }
+    if(allowOcr && _ocrEnabled && (!pageTexts[p] || pageTexts[p].replace(/\s+/g,'').length<60)){
+      try{ await ensurePageText(p, 'toc'); }catch(e){}
+    }
+    const lines=(pageLines[p]&&pageLines[p].length)?pageLines[p]:(pageTexts[p]||'').split(/\n|\r/);
+    const cand=lines.map(l=>(l||'').trim()).filter(l=>l.length>2&&l.length<200);
+    let got=0;
+    for(const ln of cand){
+      const e=parseLine(ln);
+      if(!e || !e.page) continue;
+      const sig=titleSig(e.title)+'@'+(e.prn||0)+'@'+e.level;
+      if(seen.has(sig)) continue;
+      seen.add(sig);
+      entries.push(e);
+      got++;
+    }
+    if(got>=6) _tocHintPages.push(p);
+  }
+  if(entries.length<14) return null;
+  entries.sort((a,b)=>(a.prn||0)-(b.prn||0) || a.level-b.level);
+
+  const prns=entries.map(e=>e.prn).filter(Number.isFinite).sort((a,b)=>a-b);
+  if(prns.length<14) return null;
+  const q1=prns[Math.floor(prns.length*0.1)];
+  const q9=prns[Math.floor(prns.length*0.9)];
+  const filtered=entries.filter(e=>Number.isFinite(e.prn) && e.prn>=q1 && e.prn<=q9);
+  if(filtered.length>=12) entries.splice(0, entries.length, ...filtered);
+  entries.sort((a,b)=>(a.page||0)-(b.page||0) || a.level-b.level);
+
+  const root=[];
+  const stack=[];
+  for(const e of entries){
+    const node={title:e.title,_page:e.page,dest:null,items:[]};
+    while(stack.length && stack[stack.length-1].level>=e.level) stack.pop();
+    if(stack.length) stack[stack.length-1].node.items.push(node);
+    else root.push(node);
+    stack.push({level:e.level,node});
+  }
+  return root.length?root:null;
+}
+
+async function getOcrWorker(lang){
+  if(!_ocrEnabled) throw new Error('OCR disabled');
+  if(!(window.Tesseract && Tesseract.createWorker)){
+    if(!_tessLoadPromise){
+      const urls=[
+        'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js',
+        'https://unpkg.com/tesseract.js@5/dist/tesseract.min.js',
+      ];
+      _tessLoadPromise = (async ()=>{
+        for(const rawUrl of urls){
+          const url=(rawUrl||'').trim().replace(/\.+$/,'');
+          try{
+            await new Promise((resolve,reject)=>{
+              const s=document.createElement('script');
+              s.src=url;
+              s.crossOrigin='anonymous';
+              s.onload=()=>resolve(true);
+              s.onerror=()=>reject(new Error('load fail'));
+              document.head.appendChild(s);
+            });
+            if(window.Tesseract && Tesseract.createWorker) return true;
+          }catch(e){}
+        }
+        throw new Error('OCR加载失败（CDN被拦截或资源不可达）');
+      })();
+    }
+    await _tessLoadPromise;
+  }
+  if(!(window.Tesseract && Tesseract.createWorker)) throw new Error('OCR unavailable');
+  const desired=lang||'chi_sim+eng';
+  if(_ocrWorker && _ocrWorkerLang===desired) return _ocrWorker;
+  if(_ocrWorker){
+    try{ await _ocrWorker.terminate(); }catch(e){}
+    _ocrWorker=null;
+    _ocrWorkerLang='';
+  }
+  _ocrWorkerLang=desired;
+  _ocrWorker = await Tesseract.createWorker(desired, 1, {
+    logger: m=>{
+      if(m && (m.status==='recognizing text' || m.status==='loading language traineddata')){
+        setStatus('spin','OCR');
+      }
+    }
+  });
+  return _ocrWorker;
+}
+
+function buildCharIndexFromTokens(tokens, getText){
+  let full='';
+  const map=[];
+  for(let i=0;i<tokens.length;i++){
+    const t=normalizeForMatch(getText(tokens[i])||'');
+    for(const c of t){
+      full+=c;
+      map.push(i);
+    }
+  }
+  return {full, map};
+}
+
+function bestHitIn(fullTxt, needle){
+  const nd=(needle||'');
+  if(!nd || nd.length<4 || !fullTxt) return -1;
+  const seeds=[];
+  const sLen=Math.min(10, Math.max(5, Math.floor(nd.length/3)));
+  seeds.push(nd.slice(0,sLen));
+  if(nd.length>12) seeds.push(nd.slice(Math.floor(nd.length/2)-Math.floor(sLen/2), Math.floor(nd.length/2)+Math.ceil(sLen/2)));
+  seeds.push(nd.slice(Math.max(0, nd.length-sLen)));
+  let best=-1, bestScore=-1;
+  for(const seed of Array.from(new Set(seeds.filter(Boolean)))){
+    let from=0;
+    while(true){
+      const pos=fullTxt.indexOf(seed, from);
+      if(pos<0) break;
+      const win=fullTxt.slice(pos, pos+nd.length);
+      let sc=0;
+      for(let i=0;i<Math.min(win.length, nd.length);i++) if(win[i]===nd[i]) sc++;
+      if(sc>bestScore){ bestScore=sc; best=pos; }
+      from=pos+1;
+    }
+  }
+  const need=Math.max(4, Math.floor(nd.length*0.30));
+  return bestScore>=need ? best : -1;
+}
+
+async function ocrPage(pageNum, purpose){
+  const pg=await pdfDoc.getPage(pageNum);
+  const baseVp=pg.getViewport({scale:1});
+  const maxPixels=(purpose==='toc_detect')?650000:(purpose==='toc')?2200000:(_largeMode?1200000:2000000);
+  const baseArea=Math.max(1, baseVp.width*baseVp.height);
+  const scale=Math.max(0.9, Math.min(2.0, Math.sqrt(maxPixels/baseArea)));
+  const vp=pg.getViewport({scale});
+  const c=document.createElement('canvas');
+  c.width=Math.ceil(vp.width);
+  c.height=Math.ceil(vp.height);
+  await pg.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+  let worker=null;
+  try{
+    worker=await getOcrWorker('chi_sim+eng');
+    const res=await worker.recognize(c);
+    const data=res?.data||{};
+    const words=(data.words||[]).map(w=>({text:w.text||'', bbox:w.bbox||null}));
+    const idx=buildCharIndexFromTokens(words, w=>w.text);
+    return {text:(data.text||''), words, idx, w:c.width, h:c.height};
+  }catch(e){
+    try{
+      worker=await getOcrWorker('eng');
+      const res=await worker.recognize(c);
+      const data=res?.data||{};
+      const words=(data.words||[]).map(w=>({text:w.text||'', bbox:w.bbox||null}));
+      const idx=buildCharIndexFromTokens(words, w=>w.text);
+      return {text:(data.text||''), words, idx, w:c.width, h:c.height};
+    }catch(e2){
+      throw e2;
+    }
+  }finally{
+    setStatus('ok','OK');
+  }
+}
+
+function ensureOcrPage(pageNum, purpose){
+  if(_ocrCache[pageNum]) return Promise.resolve(_ocrCache[pageNum]);
+  if(_ocrJobByPage[pageNum]) return _ocrJobByPage[pageNum];
+  const job = (_ocrQueue = _ocrQueue.then(async ()=>{
+    if(_ocrCache[pageNum]) return _ocrCache[pageNum];
+    const res=await ocrPage(pageNum, purpose||'');
+    _ocrCache[pageNum]=res;
+    _ocrCacheKeys=_ocrCacheKeys.filter(k=>k!==pageNum);
+    _ocrCacheKeys.push(pageNum);
+    const limit=_largeMode?4:8;
+    while(_ocrCacheKeys.length>limit){
+      const k=_ocrCacheKeys.shift();
+      if(k!==undefined){
+        delete _ocrCache[k];
+      }
+    }
+    return res;
+  }));
+  _ocrJobByPage[pageNum]=job.finally(()=>{ delete _ocrJobByPage[pageNum]; });
+  return _ocrJobByPage[pageNum];
+}
+
+async function ensureTextLayer(pageNum){
+  if(pageItems[pageNum] && pageTexts[pageNum]) return true;
+  if(!pdfDoc) return false;
+  const pg=await pdfDoc.getPage(pageNum);
+  const tc=await pg.getTextContent();
+  pageItems[pageNum]=tc.items;
+  const lines=itemsToLines(tc.items);
+  pageLines[pageNum]=lines;
+  pageTexts[pageNum]=lines.length ? lines.join('\n') : tc.items.map(s=>s.str).join(' ');
+  return true;
+}
+
+async function ensurePageText(pageNum, purpose){
+  const cur=(pageTexts[pageNum]||'');
+  if(cur.replace(/\s+/g,'').length>200) return true;
+  try{ await ensureTextLayer(pageNum); }catch(e){}
+  const cur2=(pageTexts[pageNum]||'');
+  if(cur2.replace(/\s+/g,'').length>200) return true;
+  if(!_ocrEnabled) return false;
+  const o=await ensureOcrPage(pageNum, purpose||'');
+  const t=(o?.text||'').trim();
+  if(!t) return false;
+  pageTexts[pageNum]=t;
+  pageLines[pageNum]=t.split(/\n|\r/).map(l=>l.replace(/\s+/g,' ').trim()).filter(l=>l.length>0);
+  return true;
+}
+
+function ocrFindBox(ocr, searchText){
+  if(!ocr?.idx?.full || !ocr?.words?.length) return null;
+  const needle=normalizeForMatch(searchText||'');
+  const hit=bestHitIn(ocr.idx.full, needle);
+  if(hit<0) return null;
+  const end=Math.min(hit+needle.length-1, ocr.idx.map.length-1);
+  const sw=ocr.idx.map[hit];
+  const ew=ocr.idx.map[end];
+  if(sw===undefined || ew===undefined) return null;
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  for(let i=Math.max(0, sw); i<=Math.min(ocr.words.length-1, ew); i++){
+    const b=ocr.words[i]?.bbox;
+    if(!b) continue;
+    x0=Math.min(x0,b.x0); y0=Math.min(y0,b.y0);
+    x1=Math.max(x1,b.x1); y1=Math.max(y1,b.y1);
+  }
+  if(!Number.isFinite(x0) || !Number.isFinite(y0) || !Number.isFinite(x1) || !Number.isFinite(y1)) return null;
+  return {x0,y0,x1,y1};
+}
+
+/* ════════════════════════════════════════
+   TABS
+════════════════════════════════════════ */
+function switchTab(name){
+  ['mindmap','digest','questions','chat'].forEach(n=>{
+    document.getElementById('tab-'+n).classList.toggle('active',n===name);
+    document.getElementById('pane-'+n).classList.toggle('active',n===name);
+  });
+}
+
+/* ════════════════════════════════════════
+   MODAL / UPLOAD
+════════════════════════════════════════ */
+function openModal(type){
+  uploadType=type;
+  document.getElementById('modalOv').style.display='flex';
+  document.getElementById('uprog').style.display='none';
+  if(type==='pdf'){
+    document.getElementById('modalTitle').textContent='📚 上传课本 PDF';
+    document.getElementById('modalSub').textContent='AI 自动提取目录，按节生成思维导图。文件仅本地处理。';
+    document.getElementById('udIcon').textContent='📄';
+    document.getElementById('udText').textContent='点击选择 PDF 文件';
+    document.getElementById('udSub').textContent='或拖拽 · 仅支持 PDF';
+    document.getElementById('fileIn').accept='.pdf';
+  } else {
+    document.getElementById('modalTitle').textContent='📝 上传题目';
+    document.getElementById('modalSub').innerHTML='TXT：每行一题。JSON：[{"text":"","type":"choice","options":[],"answer":"A","page":1}]。PDF：自动提取文本并按编号拆题（效果依赖文字层）。';
+    document.getElementById('udIcon').textContent='📋';
+    document.getElementById('udText').textContent='点击选择题目文件';
+    document.getElementById('udSub').textContent='TXT / JSON / PDF';
+    document.getElementById('fileIn').accept='.txt,.json,.pdf,.doc,.docx';
+  }
+}
+function fileChosen(e){ const f=e.target.files[0]; if(f) handleFile(f); e.target.value=''; }
+function handleDrop(e,type){
+  e.preventDefault();
+  document.getElementById('udrop').classList.remove('drag');
+  uploadType=type;
+  const f=e.dataTransfer.files[0];
+  if(f){ document.getElementById('modalOv').style.display='flex'; handleFile(f); }
+}
+async function handleFile(file){
+  document.getElementById('uprog').style.display='block';
+  setPrg(5,'读取文件...');
+  if(uploadType==='pdf') await loadPDF(file);
+  else await loadQuestions(file);
+  document.getElementById('modalOv').style.display='none';
+}
+function setPrg(pct,txt){
+  document.getElementById('upbar').style.width=pct+'%';
+  document.getElementById('upt').textContent=txt;
+}
+
+/* ════════════════════════════════════════
+   PDF LOAD
+════════════════════════════════════════ */
+async function loadPDF(file){
+  // ── Full state reset (换书时清空所有旧数据) ──
+  pdfDoc=null; curPage=1;
+  pageTexts={}; pageItems={};
+  pageLines={};
+  outlineFlat=[]; _refMap=null; mmCache.clear();
+  pageAnnotations={}; currentDigestData=null;
+  _pageIndexCache={}; _pageSigCache={};
+  _printedOffset=null; _textCoverage=1; _tocHintPages=[];
+  _ocrCache={}; _ocrJobByPage={}; _ocrQueue=Promise.resolve(); _ocrCacheKeys=[];
+  _pdfFileSize=file?.size||0;
+  // Reset UI
+  document.getElementById('outlineScroll').innerHTML='';
+  const mmTree=document.getElementById('mmTree'); mmTree.innerHTML='';
+  document.getElementById('mmEmpty').style.display='flex';
+  const dc=document.getElementById('dgContent'); dc.innerHTML='';
+  document.getElementById('dgEmpty').style.display='flex';
+  document.getElementById('dgHd').style.display='none';
+  document.getElementById('mmBc').innerHTML='';
+  clearAllAnnotations();
+  // ─────────────────────────────────────────────
+
+  const buf=await file.arrayBuffer();
+  setPrg(15,'解析 PDF...');
+  pdfDoc=await pdfjsLib.getDocument({data:buf,useSystemFonts:true}).promise;
+  _largeMode = (_pdfFileSize >= 80*1024*1024) || (pdfDoc.numPages >= 450);
+  setPrg(30,_largeMode?`大文件模式：快速初始化（${pdfDoc.numPages} 页）...`:`提取文字（${pdfDoc.numPages} 页）...`);
+
+  const samplePages=Math.min(pdfDoc.numPages, _largeMode?10:Math.min(40, pdfDoc.numPages));
+  let pagesWithText=0;
+  for(let i=1;i<=samplePages;i++){
+    try{ await ensureTextLayer(i); }catch(e){}
+    const c=(pageTexts[i]||'').replace(/\s+/g,'').length;
+    if(c>160) pagesWithText++;
+    if(i%5===0) setPrg(30+Math.round(i/samplePages*35),_largeMode?`快速检查 ${i}/${samplePages}...`:`提取文字 ${i}/${samplePages}...`);
+  }
+  _textCoverage = samplePages ? (pagesWithText/samplePages) : 1;
+  _printedOffset = await inferPrintedOffset();
+
+  setPrg(70,_largeMode?'构建目录（快速）...':'构建目录树...');
+  await buildOutline();
+  setPrg(100,'完成！');
+  document.getElementById('dropZone').style.display='none';
+  document.getElementById('cwrap').style.display='block';
+  document.getElementById('pdfTitle').textContent=file.name.replace(/\.pdf$/i,'');
+  document.getElementById('analyzeBtn').style.display='';
+  curPage=1; await renderPage(1);
+  toast('ok',`✅ 课本加载完成 · ${pdfDoc.numPages} 页`);
+}
+
+/* ════════════════════════════════════════
+   OUTLINE TREE
+════════════════════════════════════════ */
+async function buildOutline(){
+  outlineFlat=[];
+  mmCache.clear();
+  _refMap = null;
+
+  let raw=null;
+  try{ raw=await pdfDoc.getOutline(); }catch(e){}
+
+  const container=document.getElementById('outlineScroll');
+  container.innerHTML='';
+
+  if(raw&&raw.length>0){
+    if(!_largeMode && pdfDoc.numPages<=260){
+      setPrg(84, '构建页码索引...');
+      await buildRefMap();
+    }
+    await renderOutlineItems(raw, container, 0, []);
+  } else {
+    const toc=await buildOutlineFromTOC(false);
+    const fb=(!_largeMode && !toc) ? buildFallbackOutline() : null;
+    if(toc){
+      await renderOutlineItems(toc, container, 0, []);
+    } else if(fb){
+      await renderOutlineItems(fb, container, 0, []);
+    } else {
+      const wrap=document.createElement('div');
+      wrap.style.cssText='padding:14px 14px 10px;color:#3a342c;font-size:.75rem;line-height:1.8;text-align:center';
+      wrap.innerHTML='未检测到书签与可解析目录。<br>如为扫描版，可用 OCR 从目录页提取目录。';
+      const btn=document.createElement('button');
+      btn.className='tbtn';
+      btn.style.cssText='margin-top:10px;border-color:#3a342c;color:#c4bdb5';
+      btn.textContent='✨ OCR 识别目录页';
+      btn.addEventListener('click', async ()=>{
+        try{
+          container.innerHTML='';
+          const ld=document.createElement('div');
+          ld.style.cssText='padding:14px;color:#3a342c;font-size:.72rem;text-align:center';
+          ld.innerHTML='<div class="tind" style="justify-content:center"><span></span><span></span><span></span></div><div style="margin-top:6px">OCR 识别目录中...</div>';
+          container.appendChild(ld);
+          const toc2=await buildOutlineFromTOC(true);
+          container.innerHTML='';
+          if(toc2){
+            await renderOutlineItems(toc2, container, 0, []);
+            const note=document.createElement('div');
+            note.style.cssText='font-size:.6rem;color:#3a342c;padding:6px 14px;line-height:1.6';
+            note.textContent='（已从目录页提取目录）';
+            container.insertBefore(note,container.firstChild);
+          } else {
+            container.innerHTML='<div class="no-outline">未能从目录页识别到目录结构</div>';
+          }
+        }catch(e){
+          toast('err','OCR 目录失败：'+(e?.message||''));
+        }
+      });
+      wrap.appendChild(btn);
+      container.appendChild(wrap);
+    }
+    const note=document.createElement('div');
+    note.style.cssText='font-size:.6rem;color:#3a342c;padding:6px 14px;line-height:1.6';
+    if(toc || fb){
+      note.textContent=toc?'（已从目录页提取目录）':'（PDF无书签，已自动识别章节）';
+      container.insertBefore(note,container.firstChild);
+    }
+    if(_textCoverage<0.28){
+      const warn=document.createElement('div');
+      warn.style.cssText='font-size:.6rem;color:#7f1d1d;padding:0 14px 8px;line-height:1.6';
+      warn.textContent='（正文可能是扫描版/无文字层：思维导图、精读、高亮、批注会受限）';
+      container.insertBefore(warn,container.firstChild.nextSibling);
+    }
+  }
+}
+
+function buildFallbackOutline(){
+  const partRe=/^(第\s*[一二三四五六七八九十百零\d]+\s*篇|part\s*\d+|unit\s*\d+|单元\s*[一二三四五六七八九十百零\d]+)/i;
+  const chRe=/^(第\s*[一二三四五六七八九十百零\d]+\s*章|chapter\s*\d+|章\s*[一二三四五六七八九十百零\d]+)/i;
+  const secNumRe=/^(\d{1,3})\s*[\.\-－—]\s*(\d{1,3})(\s*[\.\-－—]\s*(\d{1,3}))?(\s*[\.\-－—]\s*(\d{1,3}))?\s*[:：.\-－—]?\s*\S+/;
+  const secCnRe=/^([（(]?[一二三四五六七八九十]{1,3}[)）]?|[一二三四五六七八九十]{1,3})[、.．]\s*\S+/;
+  const secSymRe=/^§\s*\d{1,3}(\s*[\.\-－—]\s*\d{1,3}){0,3}\s*[:：.\-－—]?\s*\S+/;
+  const secWordRe=/^(section|lecture|lesson)\s*\d+\s*[:：.\-－—]?\s*\S+/i;
+
+  const hits=[];
+  const seen=new Set();
+  const numChapterFirstPage=new Map();
+  const numSecHits=[];
+
+  function pushHit(h){
+    const sig=titleSig(h.title);
+    if(!sig || seen.has(sig)) return;
+    seen.add(sig);
+    hits.push(h);
+  }
+
+  for(let p=1;p<=pdfDoc.numPages;p++){
+    const cand=getHeadingCandidates(p);
+    const found=[];
+    for(const ln of cand){
+      if(partRe.test(ln)) found.push({level:0,title:ln,_page:p});
+      else if(chRe.test(ln)) found.push({level:1,title:ln,_page:p});
+      else if(secSymRe.test(ln)) found.push({level:2,title:ln,_page:p});
+      else if(secWordRe.test(ln)) found.push({level:2,title:ln,_page:p});
+      else {
+        const m=ln.match(secNumRe);
+        if(m){
+          const first=parseInt(m[1]);
+          const third=m[4]!==undefined;
+          const fourth=m[6]!==undefined;
+          const level=fourth?4:(third?3:2);
+          found.push({level,title:ln,_page:p,_first:first,_kind:'num'});
+        } else if(secCnRe.test(ln)){
+          found.push({level:2,title:ln,_page:p});
+        }
+      }
+    }
+
+    found.sort((a,b)=>a.level-b.level);
+    for(const f of found){
+      if(f._kind==='num' && Number.isFinite(f._first)){
+        if(!numChapterFirstPage.has(f._first)) numChapterFirstPage.set(f._first, f._page);
+        numSecHits.push(f);
+      }
+      pushHit(f);
+      if(f.level<=1) break;
+    }
+  }
+
+  const hasChapter=hits.some(h=>h.level===0||h.level===1);
+  if(!hasChapter && numChapterFirstPage.size>=3 && numSecHits.length>=8){
+    const pseudo=[];
+    const entries=Array.from(numChapterFirstPage.entries()).sort((a,b)=>a[1]-b[1]);
+    for(const [n,pg] of entries){
+      const title=`第${n}章`;
+      const sig=titleSig(title);
+      if(sig && !seen.has(sig)){
+        seen.add(sig);
+        pseudo.push({level:1,title,_page:pg,dest:null,items:[]});
+      }
+    }
+    hits.unshift(...pseudo.sort((a,b)=>a._page-b._page));
+  }
+
+  if(hits.length){
+    hits.sort((a,b)=>a._page-b._page || a.level-b.level);
+    const root=[];
+    const stack=[];
+    for(const h of hits){
+      const node={title:h.title,_page:h._page,dest:null,items:[]};
+      while(stack.length && stack[stack.length-1].level>=h.level) stack.pop();
+      if(stack.length) stack[stack.length-1].node.items.push(node);
+      else root.push(node);
+      stack.push({level:h.level,node});
+    }
+    if(root.length) return root;
+  }
+
+  const step=Math.max(1,Math.floor(pdfDoc.numPages/Math.max(10,Math.min(18,Math.floor(pdfDoc.numPages/20)))));
+  const items=[];
+  for(let p=1,i=0;p<=pdfDoc.numPages;p+=step,i++) items.push({title:`第 ${i+1} 节 (P${p})`, dest:null, _page:p, items:[]});
+  return items;
+}
+
+async function resolveItemPage(item){
+  // Strategy 0: already resolved
+  if(item._page) return item._page;
+  if(!item.dest && !item.url) return null;
+
+  try{
+    let d = item.dest;
+
+    // Strategy 1: named destination string
+    if(typeof d === 'string'){
+      try{ d = await pdfDoc.getDestination(d); }
+      catch(e){ d = null; }
+    }
+
+    if(!d || !Array.isArray(d) || !d.length) return null;
+
+    const ref = d[0];
+    if(ref === null || ref === undefined) return null;
+
+    // Strategy 2: ref is already a 0-based page number
+    if(typeof ref === 'number') return ref + 1;
+
+    // Strategy 3: ref is a PDF internal object reference {num, gen}
+    // pdf.js exposes pdfDoc.getPageIndex for these
+    if(typeof ref === 'object'){
+      try{
+        const idx = await pdfDoc.getPageIndex(ref);
+        if(typeof idx === 'number') return idx + 1;
+      }catch(e){}
+
+      // Strategy 4: some pdf.js versions need the ref differently
+      // Try getting it via the internal API
+      try{
+        const pdfRef = pdfDoc.getPDFBytesForPage ? ref : ref;
+        // Walk all pages to match the ref num/gen
+        const numPages = pdfDoc.numPages;
+        for(let i = 1; i <= Math.min(numPages, 500); i++){
+          const pg = await pdfDoc.getPage(i);
+          const r = pg.ref;
+          if(r && r.num === ref.num && r.gen === ref.gen) return i;
+        }
+      }catch(e){}
+    }
+  }catch(e){}
+
+  return null;
+}
+
+// Faster batch resolver: resolve all items up-front using page iteration
+// Builds a map of {num,gen} -> pageNum for O(1) lookup
+let _refMap = null;
+async function buildRefMap(){
+  if(_refMap) return _refMap;
+  _refMap = new Map();
+  for(let i = 1; i <= pdfDoc.numPages; i++){
+    try{
+      const pg = await pdfDoc.getPage(i);
+      if(pg.ref) _refMap.set(`${pg.ref.num}_${pg.ref.gen}`, i);
+    }catch(e){}
+  }
+  return _refMap;
+}
+
+async function resolveItemPageFast(item){
+  if(item._page) return item._page;
+  if(!item.dest) return null;
+  try{
+    let d = item.dest;
+    if(typeof d === 'string') d = await pdfDoc.getDestination(d);
+    if(!d || !Array.isArray(d) || !d.length) return null;
+    const ref = d[0];
+    if(ref === null || ref === undefined) return null;
+    if(typeof ref === 'number') return ref + 1;
+    if(typeof ref === 'object' && _refMap){
+      const pg = _refMap.get(`${ref.num}_${ref.gen}`);
+      if(pg) return pg;
+    }
+    // Fallback to slow method
+    return await resolveItemPage(item);
+  }catch(e){ return null; }
+}
+
+async function renderOutlineItems(items, container, level, ancestry){
+  for(const item of items){
+    const pageNum = await resolveItemPageFast(item);
+    const flatEntry={title:item.title||'(无标题)', page:pageNum, level, raw:item};
+    outlineFlat.push(flatEntry);
+
+    const nodeEl=document.createElement('div');
+    nodeEl.className='on';
+    nodeEl.dataset.flatIdx=outlineFlat.length-1;
+
+    const hasChildren=item.items&&item.items.length>0;
+    const rowEl=document.createElement('div');
+    rowEl.className='or';
+    rowEl.style.paddingLeft=(8+level*13)+'px';
+
+    const togEl=document.createElement('span');
+    togEl.className='otog';
+    togEl.textContent=hasChildren?'▶':'';
+
+    const titleEl=document.createElement('span');
+    titleEl.className='ot';
+    titleEl.textContent=item.title||'(无标题)';
+    titleEl.title=item.title||'';
+
+    const pageEl=document.createElement('span');
+    pageEl.className='op';
+    pageEl.textContent=pageNum||'';
+
+    rowEl.appendChild(togEl); rowEl.appendChild(titleEl); rowEl.appendChild(pageEl);
+
+    const childEl=document.createElement('div');
+    childEl.className='oc';
+    // Level 0 (chapters) start expanded; deeper levels too
+    // Everything open by default so tree is fully visible
+    if(hasChildren){
+      childEl.classList.add('open');
+      togEl.classList.add('open');
+    }
+
+    const thisAncestry=[...ancestry, flatEntry];
+
+    rowEl.addEventListener('click', e=>{
+      e.stopPropagation();
+      if(pageNum) jumpPage(pageNum);
+      document.querySelectorAll('.or').forEach(r=>r.classList.remove('active'));
+      rowEl.classList.add('active');
+      if(hasChildren){
+        childEl.classList.toggle('open');
+        togEl.classList.toggle('open', childEl.classList.contains('open'));
+      }
+      expandAncestors(rowEl);
+      loadMindmap(flatEntry, item, thisAncestry);
+      switchTab('mindmap');
+    });
+
+    nodeEl.appendChild(rowEl); nodeEl.appendChild(childEl);
+    container.appendChild(nodeEl);
+
+    if(hasChildren) await renderOutlineItems(item.items, childEl, level+1, thisAncestry);
+  }
+}
+
+function expandAncestors(rowEl){
+  let el=rowEl.parentElement;
+  while(el){
+    if(el.classList.contains('oc')) el.classList.add('open');
+    if(el.classList.contains('on')){
+      const tog=el.querySelector(':scope>.or>.otog');
+      if(tog) tog.classList.add('open');
+    }
+    el=el.parentElement;
+    if(el&&el.id==='outlineScroll') break;
+  }
+}
+
+function syncOutlineToPage(pn){
+  let best=null, bestP=0;
+  outlineFlat.forEach(e=>{ if(e.page&&e.page<=pn&&e.page>=bestP){ bestP=e.page; best=e; } });
+  if(!best) return;
+  const idx=outlineFlat.indexOf(best);
+  const node=document.querySelector(`.on[data-flat-idx="${idx}"]`);
+  if(!node) return;
+  document.querySelectorAll('.or').forEach(r=>r.classList.remove('active'));
+  const row=node.querySelector(':scope>.or');
+  if(row){ row.classList.add('active'); expandAncestors(row); row.scrollIntoView({block:'nearest',behavior:'smooth'}); }
+}
+
+/* ════════════════════════════════════════
+   MINDMAP — layered progressive system
+   Chapter level → shows sub-section overviews (AI gives 1-line brief per section)
+   Section/subsection level → shows actual paragraphs (§1 定义, §2 举例…)
+   Clicking a paragraph → jumps PDF + auto-annotates + opens digest
+════════════════════════════════════════ */
+
+const PARA_TYPE_CFG = {
+  definition: {label:'定义', color:'#2563eb', bg:'rgba(37,99,235,0.07)', pill:'#dbeafe'},
+  example:    {label:'举例', color:'#059669', bg:'rgba(5,150,105,0.07)', pill:'#d1fae5'},
+  derivation: {label:'推导', color:'#7c3aed', bg:'rgba(124,58,237,0.07)', pill:'#ede9fe'},
+  comparison: {label:'比较', color:'#d97706', bg:'rgba(217,119,6,0.07)',  pill:'#fef3c7'},
+  note:       {label:'注意', color:'#e11d48', bg:'rgba(225,29,72,0.07)',  pill:'#ffe4e6'},
+  summary:    {label:'总结', color:'#64748b', bg:'rgba(100,116,139,0.07)',pill:'#f1f5f9'},
+  theorem:    {label:'定理', color:'#7c3aed', bg:'rgba(124,58,237,0.07)', pill:'#ede9fe'},
+  concept:    {label:'概念', color:'#2563eb', bg:'rgba(37,99,235,0.07)', pill:'#dbeafe'},
+};
+
+// pageAnnotations: pageNum → [{yPct, hPct, color, label, pill, summary, keySen}]
+// Stored as % of canvas height so zoom-independent
+let pageAnnotations = {};
+let currentDigestData = null; // {mmData, branchLabel, paras} — used for auto-annotate
+
+async function loadMindmap(flatEntry, rawItem, ancestry){
+  const mmTree=document.getElementById('mmTree');
+  document.getElementById('mmEmpty').style.display='none';
+  mmTree.innerHTML='';
+  renderMmBreadcrumb(ancestry);
+
+  const cacheKey=`mm||${flatEntry.title}||${flatEntry.page||0}`;
+  if(mmCache.has(cacheKey)){
+    renderMindmapTree(mmCache.get(cacheKey), flatEntry, rawItem, ancestry, mmTree);
+    return;
+  }
+
+  const loadDiv=document.createElement('div');
+  loadDiv.className='mm-loading';
+  loadDiv.innerHTML=`<div class="tind"><span></span><span></span><span></span></div><span>AI 分析「${flatEntry.title}」...</span>`;
+  mmTree.appendChild(loadDiv);
+
+  if(!getKey()){ loadDiv.innerHTML='<span style="color:var(--muted)">⚠️ 请先填入 API Key</span>'; return; }
+
+  // Collect section text + bookmark children
+  const children=rawItem.items||[];
+  const hasBookmarkChildren=children.length>0;
+  let childrenStr='';
+  if(hasBookmarkChildren){
+    const lines=[];
+    for(const ch of children){
+      const pg=await resolveItemPageFast(ch); lines.push(`- ${ch.title||''}${pg?' P'+pg:''}`);
+      if(ch.items?.length) for(const gc of ch.items){ const gp=await resolveItemPageFast(gc); lines.push(`  - ${gc.title||''}${gp?' P'+gp:''}`); }
+    }
+    childrenStr='书签子章节：\n'+lines.join('\n')+'\n\n';
+  }
+
+  const startPage=flatEntry.page||1;
+  let endPage=Math.min(startPage+CFG.mindmapMaxPages, pdfDoc.numPages);
+  const myIdx=outlineFlat.indexOf(flatEntry);
+  for(let j=myIdx+1;j<outlineFlat.length;j++){
+    if(outlineFlat[j].level<=flatEntry.level&&outlineFlat[j].page>startPage){ endPage=Math.min(outlineFlat[j].page-1, startPage+CFG.mindmapMaxPages); break; }
+  }
+  let sectionText='';
+  for(let p=startPage;p<=endPage;p++){
+    if(_ocrEnabled && _textCoverage<0.30 && (!pageTexts[p] || pageTexts[p].replace(/\s+/g,'').length<80)){
+      try{ await ensurePageText(p, 'mindmap'); }catch(e){}
+    }
+    const t=(pageTexts[p]||'').trim(); if(t) sectionText+=`\n[P${p}]\n${t}`; if(sectionText.length>CFG.mindmapMaxChars) break;
+  }
+
+  // Different prompt based on whether this node has bookmark children (chapter/section level)
+  // or is a leaf node (smallest subsection → show paragraphs)
+  let hasRealText = sectionText.trim().length > 120;
+  if(!hasRealText && _ocrEnabled && _textCoverage<0.55){
+    sectionText='';
+    const moreEnd=Math.min(endPage, startPage+Math.min(10, CFG.mindmapMaxPages));
+    for(let p=startPage;p<=moreEnd;p++){
+      if(!pageTexts[p] || pageTexts[p].replace(/\s+/g,'').length<120){
+        try{ await ensurePageText(p, 'mindmap'); }catch(e){}
+      }
+      const t=(pageTexts[p]||'').trim(); if(t) sectionText+=`\n[P${p}]\n${t}`; if(sectionText.length>CFG.mindmapMaxChars) break;
+    }
+    hasRealText = sectionText.trim().length > 120;
+  }
+  if(!hasRealText){
+    if(hasBookmarkChildren){
+      const branches=[];
+      for(const ch of children){
+        const pg=await resolveItemPageFast(ch);
+        branches.push({label:ch.title||'', page:pg||startPage, brief:'', type:'section'});
+      }
+      const data={root:flatEntry.title||'', branches, _hasChildren:true, _noText:true};
+      mmCache.set(cacheKey, data);
+      loadDiv.remove();
+      renderMindmapTree(data, flatEntry, rawItem, ancestry, mmTree);
+      return;
+    }
+    loadDiv.innerHTML='<span style="color:var(--muted)">未能获取本节可分析文本。正在尝试OCR仍失败时，建议先对PDF做OCR再导入。</span>';
+    return;
+  }
+  let prompt;
+  if(hasBookmarkChildren){
+    prompt=`你是教材分析助手，为教材节点「${flatEntry.title}」生成层级思维导图。
+
+${childrenStr}书本原文（带页码）：
+${sectionText||'（无文字）'}
+
+要求：
+1. root = 本节核心主题（一句话概括这整章/节讲什么）
+2. branches = 该节的直接子章节（严格对应书签子章节列表）
+   - label: 子章节标题（照抄书签名称）
+   - page: 准确页码（从[PX]判断，绝对不要所有branches都用同一个页码）
+   - brief: 对该子章节的一句话概括（≤20字，必须基于原文，不要写「本节讲XXX」这种模板）
+   - type: "section"
+3. 按书本顺序排列
+
+⚠️ 严格禁止：brief不能写「介绍了XXX的基本概念」「本节讲XXX」这类模板套话，要写出这节的具体核心内容。
+
+只输出JSON，不含任何其他文字：
+{"root":"核心主题","branches":[{"label":"子章节名","page":82,"brief":"具体内容概括","type":"section"}]}`
+  } else {
+    prompt=`你是教材分析助手，对教材节点「${flatEntry.title}」进行段落级深度分析。
+
+书本原文（带页码标记，[PX]表示第X页）：
+${sectionText||'（无可提取文字，PDF可能是扫描版）'}
+
+要求：
+1. root = 本小节核心主题（一句话）
+2. branches = 本小节下的知识模块（2-4个，按原文逻辑划分）
+   - label: 模块名称（结合中英文，如「双绞线 Twisted Pair」）
+   - page: 该模块起始页码（从[PX]标记判断）
+   - type: "module"
+   - paragraphs: 该模块下的段落列表（2-5段，按原文顺序）
+     * type: definition/example/derivation/comparison/note/summary/theorem/concept
+     * page: 该段所在页码（注意：不同段落可能在不同页，从[PX]判断，不要所有段都用同一页）
+     * summary: 对该段的一句话概括（≤20字，口语化，说清楚这段在讲什么具体内容）
+     * key_sentence: 【必须是原文中真实存在的句子，直接从[PX]后的文字中截取，≤40字，如果找不到真实原文则填""】
+     * full_para: 该段的完整原文文字
+3. glossary: 本节出现的专业术语列表（3-8个）
+   - zh: 中文术语
+   - en: 英文术语
+   - brief: 一句话解释（≤20字）
+
+⚠️ 严格禁止：
+- key_sentence 不能写「从原文中提取的关键句」「不超过35字」这类说明文字，必须是原文真实句子或""
+- 如果原文为空或无法提取，所有 key_sentence 填 ""，不要编造
+- summary 不能是「介绍了XXX」「描述了XXX」这类模板，要说具体内容
+
+只输出JSON，不含任何其他文字：
+{"root":"核心主题","branches":[{"label":"模块名 Module Name","page":82,"type":"module","paragraphs":[{"type":"definition","page":82,"summary":"具体内容概括","key_sentence":"原文真实句子或空字符串","full_para":"完整原文段落"}]}],"glossary":[{"zh":"中文术语","en":"English Term","brief":"解释"}]}`
+  }
+
+  try{
+    setStatus('spin','...');
+    const raw=await callAI(prompt);
+    setStatus('ok','OK');
+    const data=extractJSON(raw);
+    data._hasChildren=hasBookmarkChildren;
+    mmCache.set(cacheKey, data);
+    loadDiv.remove();
+    renderMindmapTree(data, flatEntry, rawItem, ancestry, mmTree);
+  }catch(e){
+    setStatus('err','ERR');
+    loadDiv.innerHTML=`<span style="color:var(--rose)">生成失败：${e.message}</span>`;
+    const btn=document.createElement('button');
+    btn.style.cssText='margin-left:8px;padding:2px 8px;border:1px solid var(--rose);border-radius:4px;background:#fff;cursor:pointer;font-size:.68rem;color:var(--rose)';
+    btn.textContent='重试';
+    btn.addEventListener('click',()=>{ mmCache.delete(cacheKey); loadMindmap(flatEntry,rawItem,ancestry); });
+    loadDiv.appendChild(btn);
+  }
+}
+
+function renderMmBreadcrumb(ancestry){
+  const bc=document.getElementById('mmBc');
+  bc.innerHTML='';
+  if(!ancestry?.length) return;
+  ancestry.forEach((n,i)=>{
+    if(i>0){ const sep=document.createElement('span'); sep.className='mm-bc-sep'; sep.textContent='›'; bc.appendChild(sep); }
+    const el=document.createElement('span');
+    el.className='mm-bc-item'+(i===ancestry.length-1?' active':'');
+    el.textContent=(n.title||'').length>14?(n.title||'').substring(0,14)+'…':(n.title||'');
+    el.title=n.title||'';
+    if(i<ancestry.length-1&&n.page) el.addEventListener('click',()=>jumpPage(n.page));
+    bc.appendChild(el);
+  });
+}
+
+function renderMindmapTree(data, flatEntry, rawItem, ancestry, container){
+  // Root node
+  const rootEl=document.createElement('div');
+  rootEl.className='mm-root-node';
+  rootEl.textContent=data.root||flatEntry.title;
+  if(flatEntry.page) rootEl.addEventListener('click',()=>jumpPage(flatEntry.page));
+  container.appendChild(rootEl);
+
+  const branchesEl=document.createElement('div');
+  branchesEl.className='mm-branches';
+
+  (data.branches||[]).forEach(b=>{
+    const bPage=parseInt(b.page)||flatEntry.page||0;
+    const isSection=b.type==='section';
+
+    const branchEl=document.createElement('div');
+    branchEl.className='mm-branch';
+
+    // ── Branch header ──
+    const hdEl=document.createElement('div');
+    hdEl.className='mm-branch-hd';
+
+    const togEl=document.createElement('span');
+    togEl.className='mm-branch-tog';
+    togEl.textContent='▶';
+
+    const iconEl=document.createElement('span');
+    iconEl.className='mm-branch-icon';
+    iconEl.textContent=isSection?'📂':'📄';
+
+    const labelEl=document.createElement('span');
+    labelEl.className='mm-branch-label';
+    labelEl.textContent=b.label||'';
+
+    hdEl.appendChild(togEl); hdEl.appendChild(iconEl); hdEl.appendChild(labelEl);
+
+    if(bPage){
+      const pgEl=document.createElement('span');
+      pgEl.className='mm-branch-page'; pgEl.textContent='P'+bPage;
+      pgEl.addEventListener('click', e=>{ e.stopPropagation(); jumpPage(bPage); });
+      hdEl.appendChild(pgEl);
+    }
+    branchEl.appendChild(hdEl);
+
+    // ── Body ──
+    const bodyEl=document.createElement('div');
+    bodyEl.className='mm-children';
+
+    if(isSection){
+      // Section node: show brief + "展开思维导图" button
+      if(b.brief){
+        const briefEl=document.createElement('div');
+        briefEl.style.cssText='padding:7px 10px 4px;font-size:.72rem;color:var(--muted);line-height:1.5;font-style:italic';
+        briefEl.textContent='📝 '+b.brief;
+        bodyEl.appendChild(briefEl);
+      }
+      // Find matching flat entry to drill into
+      const matchFlat=findBestOutlineMatch(b.label, bPage) || outlineFlat.find(f=>titleSig(f.title)===titleSig(b.label||'')&&(!bPage||!f.page||parseInt(f.page)===parseInt(bPage)));
+      if(matchFlat?.raw){
+        const drillBtn=document.createElement('button');
+        drillBtn.style.cssText='margin:4px 10px 8px;padding:4px 12px;border:1.5px solid var(--amber);border-radius:5px;background:var(--amber-p);color:#92400e;font-size:.68rem;cursor:pointer;font-family:"Noto Sans SC",sans-serif;width:calc(100% - 20px)';
+        drillBtn.textContent='展开「'+b.label+'」的思维导图 →';
+        const _flat=matchFlat, _raw=matchFlat.raw;
+        drillBtn.addEventListener('click', e=>{
+          e.stopPropagation();
+          if(bPage) jumpPage(bPage);
+          const newAncestry=[...ancestry, _flat];
+          loadMindmap(_flat, _raw, newAncestry);
+        });
+        bodyEl.appendChild(drillBtn);
+      }
+    } else {
+      // Module node: show paragraphs
+      const paras=b.paragraphs||[];
+      if(paras.length){
+        const allBtn=document.createElement('button');
+        allBtn.style.cssText='margin:6px 10px 8px;padding:4px 12px;border:1.5px solid var(--blue);border-radius:5px;background:var(--blue-l);color:var(--blue);font-size:.68rem;cursor:pointer;font-family:"Noto Sans SC",sans-serif;width:calc(100% - 20px)';
+        allBtn.textContent='📌 标注并精读本模块（全部段落）';
+        const _b=b, _data=data;
+        allBtn.addEventListener('click', e=>{
+          e.stopPropagation();
+          if(bPage) jumpPage(bPage);
+          switchTab('digest');
+          showDigestForBranch(_data, _b, flatEntry.page||1, bPage||flatEntry.page||1);
+        });
+        bodyEl.appendChild(allBtn);
+      }
+      paras.forEach((para,pi)=>{
+        const cfg=PARA_TYPE_CFG[para.type]||PARA_TYPE_CFG.concept;
+        const pPage=parseInt(para.page)||bPage;
+        const keySen=(para.key_sentence||'').trim();
+
+        const paraEl=document.createElement('div');
+        paraEl.className='mm-child';
+        paraEl.style.cssText=`flex-direction:column;align-items:stretch;gap:3px;padding:7px 9px;border-left:3px solid ${cfg.color};background:${cfg.bg};cursor:pointer;margin-bottom:3px;border-radius:0 5px 5px 0`;
+
+        // §N + type tag + page
+        const topRow=document.createElement('div');
+        topRow.style.cssText='display:flex;align-items:center;gap:5px';
+        const numSp=document.createElement('span');
+        numSp.style.cssText=`font-size:.58rem;font-family:"JetBrains Mono",monospace;color:${cfg.color};font-weight:700`;
+        numSp.textContent='§'+(pi+1);
+        const typePill=document.createElement('span');
+        typePill.style.cssText=`font-size:.58rem;padding:1px 5px;border-radius:3px;background:${cfg.pill};color:${cfg.color};font-family:"JetBrains Mono",monospace;font-weight:600;border:1px solid ${cfg.color}40`;
+        typePill.textContent=cfg.label;
+        const pgBtn=document.createElement('span');
+        pgBtn.style.cssText='font-size:.57rem;font-family:"JetBrains Mono",monospace;color:var(--muted2);margin-left:auto;padding:1px 4px;border-radius:3px;border:1px solid var(--bdr);background:#fff';
+        pgBtn.textContent='P'+pPage;
+        pgBtn.addEventListener('click', e2=>{ e2.stopPropagation(); jumpPage(pPage); });
+        topRow.appendChild(numSp); topRow.appendChild(typePill); topRow.appendChild(pgBtn);
+        paraEl.appendChild(topRow);
+
+        // Summary
+        const sumEl=document.createElement('div');
+        sumEl.style.cssText='font-size:.73rem;color:var(--ink2);line-height:1.4';
+        sumEl.textContent=para.summary||'';
+        paraEl.appendChild(sumEl);
+
+        // Key sentence
+        if(keySen){
+          const keyEl=document.createElement('div');
+          keyEl.style.cssText='font-size:.67rem;color:var(--muted);font-style:italic;padding:2px 5px;background:rgba(255,255,255,.55);border-radius:3px;line-height:1.45';
+          keyEl.textContent='「'+keySen+'」';
+          paraEl.appendChild(keyEl);
+        }
+
+        // Click paragraph → jump + auto-annotate + open digest
+        const _para=para, _b=b, _data=data;
+        paraEl.addEventListener('click', e=>{
+          if(e.target===pgBtn) return;
+          jumpPage(pPage);
+          // Auto-annotate this paragraph on PDF
+          setTimeout(()=>{
+            if(keySen) autoAnnotateParagraph(pPage, keySen, para.type, cfg.label, cfg.color, cfg.pill, para.summary||'');
+          }, 350);
+          // Open digest showing all paragraphs of this module
+          switchTab('digest');
+          showDigestForBranch(_data, _b, flatEntry.page||1, pPage);
+        });
+
+        // 精读 button
+        const dgBtn=document.createElement('button');
+        dgBtn.style.cssText='margin-top:4px;padding:3px 0;border:1px solid var(--amber);border-radius:4px;background:var(--amber-p);font-size:.62rem;color:#92400e;cursor:pointer;font-family:"Noto Sans SC",sans-serif;font-weight:600;width:100%';
+        dgBtn.textContent='📖 精读这一段';
+        dgBtn.addEventListener('click', e=>{
+          e.stopPropagation();
+          jumpPage(pPage);
+          if(keySen) setTimeout(()=>{ autoAnnotateParagraph(pPage, keySen, para.type, cfg.label, cfg.color, cfg.pill, para.summary||''); }, 350);
+          switchTab('digest');
+          showDigestForBranch(_data, _b, flatEntry.page||1, pPage);
+        });
+        paraEl.appendChild(dgBtn);
+
+        bodyEl.appendChild(paraEl);
+      });
+    }
+
+    hdEl.addEventListener('click', e=>{
+      if(e.target.classList.contains('mm-branch-page')) return;
+      bodyEl.classList.toggle('open');
+      togEl.classList.toggle('open', bodyEl.classList.contains('open'));
+      if(!bodyEl.classList.contains('open')) return;
+      if(bPage) jumpPage(bPage);
+    });
+
+    // Start expanded for module branches, collapsed for section branches
+    if(!isSection){ bodyEl.classList.add('open'); togEl.classList.add('open'); }
+
+    branchEl.appendChild(bodyEl);
+    branchesEl.appendChild(branchEl);
+  });
+
+  container.appendChild(branchesEl);
+}
+
+/* ════════════════════════════════════════
+   PDF ANNOTATIONS — accurate position, multi-paragraph
+════════════════════════════════════════ */
+async function autoAnnotateParagraph(pageNum, keySen, type, label, color, pillBg, summary){
+  if(pageNum!==curPage){ setTimeout(()=>autoAnnotateParagraph(pageNum, keySen, type, label, color, pillBg, summary), 140); return; }
+
+  const ac=document.getElementById('ac');
+  const ctx=ac.getContext('2d');
+  const scale=zoomLv*1.4;
+  const vp=(_lastVpPage===pageNum)?_lastVp:null;
+
+  if(!pageItems[pageNum]){ try{ await ensureTextLayer(pageNum); }catch(e){} }
+  const items=pageItems[pageNum];
+  if((!items || !items.length) && _ocrEnabled){
+    try{
+      const o=await ensureOcrPage(pageNum, 'annot');
+      const box=ocrFindBox(o, keySen||'');
+      if(box){
+        const rx=ac.width/(o.w||ac.width);
+        const ry=ac.height/(o.h||ac.height);
+        const x0=Math.max(0, box.x0*rx-8);
+        const y0=Math.max(0, box.y0*ry-10);
+        const x1=Math.min(ac.width, box.x1*rx+8);
+        const y1=Math.min(ac.height, box.y1*ry+10);
+        const h=Math.max(20, y1-y0);
+        const w=Math.max(80, x1-x0);
+        drawParaAnnotation(ctx, ac, pageNum, y0, h, color, label, pillBg, summary, scale, x0, w);
+        return;
+      }
+    }catch(e){}
+  }
+  if(!items?.length){ toast('err','该页无法定位批注（缺少文字层且OCR失败）'); return; }
+
+  const idx=getPageIndex(pageNum);
+  const needle=normalizeForMatch((keySen||''));
+  if(needle.length<6){ drawParaAnnotation(ctx, ac, pageNum, 60, 90, color, label, pillBg, summary, scale, 0, ac.width); return; }
+  const mi=bestHitIn(idx.full, needle);
+  if(mi<0){
+    drawParaAnnotation(ctx, ac, pageNum, 60, 90, color, label, pillBg, summary, scale, 0, ac.width);
+    return;
+  }
+
+  const hitItem=items[charToItem[mi]];
+  if(!hitItem?.transform) return;
+  const hitIdx=charToItem[mi];
+
+  if(vp){
+    const hb=itemBoxOnCanvas(hitItem, vp);
+    if(!hb) { drawParaAnnotation(ctx, ac, pageNum, 60, 90, color, label, pillBg, summary, scale, 0, ac.width); return; }
+    const midX=hb.x + hb.w/2;
+    let x0=0, w=ac.width;
+    if(ac.width>420){
+      if(midX>ac.width*0.58){ x0=ac.width*0.5; w=ac.width*0.5; }
+      else if(midX<ac.width*0.42){ x0=0; w=ac.width*0.5; }
+    }
+
+    const winL=Math.max(0, hitIdx-90), winR=Math.min(items.length-1, hitIdx+180);
+    const yBand=Math.max(hb.h*10, ac.height*0.12);
+    let minTop=hb.top, maxBot=hb.bottom;
+    let minX=hb.x, maxX=hb.x+hb.w;
+    for(let k=winL;k<=winR;k++){
+      const b=itemBoxOnCanvas(items[k], vp);
+      if(!b) continue;
+      const cx=b.x + b.w/2;
+      if(cx < x0 || cx > x0+w) continue;
+      if(Math.abs(b.y - hb.y) > yBand) continue;
+      minTop=Math.min(minTop, b.top);
+      maxBot=Math.max(maxBot, b.bottom);
+      minX=Math.min(minX, b.x);
+      maxX=Math.max(maxX, b.x+b.w);
+    }
+    const topY_canvas=Math.max(2, minTop - hb.h*0.7);
+    const hh=Math.min(ac.height-2, Math.max(hb.h*2.4, (maxBot-minTop) + hb.h*1.2));
+    const boxLeft=Math.max(0, Math.min(ac.width-2, Math.max(x0, minX-10)));
+    const boxRight=Math.max(0, Math.min(ac.width, Math.min(x0+w, maxX+10)));
+    const boxW=Math.max(80, boxRight-boxLeft);
+    drawParaAnnotation(ctx, ac, pageNum, topY_canvas, hh, color, label, pillBg, summary, scale, boxLeft, boxW);
+    return;
+  }
+
+  const tx=hitItem.transform;
+  const lineH = Math.abs(tx[3]||12)*scale;
+  const winItems=new Set();
+  for(let k=Math.max(0, hitIdx-40); k<=Math.min(items.length-1, hitIdx+90); k++) winItems.add(k);
+  let minY=tx[5], maxY=tx[5], minX=tx[4], maxX=tx[4]+((hitItem.width||30));
+  for(const k of winItems){
+    const it=items[k];
+    if(!it?.transform) continue;
+    const x=it.transform[4]||0;
+    const y=it.transform[5]||0;
+    minY=Math.min(minY,y); maxY=Math.max(maxY,y);
+    minX=Math.min(minX,x); maxX=Math.max(maxX,x+((it.width||20)));
+  }
+  const topY_canvas = ac.height - maxY*scale - lineH*0.4;
+  const botY_canvas = ac.height - minY*scale + lineH*1.3;
+  const h = Math.max(botY_canvas - topY_canvas, lineH*2.0);
+
+  const midX=(tx[4]||0)*scale;
+  let x0=0, w=ac.width;
+  if(ac.width>420){
+    if(midX>ac.width*0.58){ x0=ac.width*0.5; w=ac.width*0.5; }
+    else if(midX<ac.width*0.42){ x0=0; w=ac.width*0.5; }
+  }
+  const boxLeft=Math.max(x0, (minX*scale)-10);
+  const boxRight=Math.min(x0+w, (maxX*scale)+10);
+  const boxW=Math.max(60, boxRight-boxLeft);
+  drawParaAnnotation(ctx, ac, pageNum, topY_canvas, h, color, label, pillBg, summary, scale, boxLeft, boxW);
+}
+
+function drawParaAnnotation(ctx, ac, pageNum, topY, h, color, label, pillBg, summary, scale, x0=0, w=null){
+  if(w===null) w=ac.width;
+  // Don't clear all — accumulate annotations
+  // Draw left bar
+  const barX=x0+4, barW=4;
+  ctx.save();
+  ctx.fillStyle=color; ctx.globalAlpha=0.9;
+  ctx.fillRect(barX, topY, barW, h);
+  ctx.restore();
+
+  // Subtle background
+  ctx.save();
+  ctx.fillStyle=color; ctx.globalAlpha=0.07;
+  ctx.fillRect(x0, topY, w, h);
+  ctx.restore();
+
+  // Store annotation
+  const yPct=topY/ac.height, hPct=h/ac.height;
+  if(!pageAnnotations[pageNum]) pageAnnotations[pageNum]=[];
+  const xPct=x0/ac.width, wPct=w/ac.width;
+  pageAnnotations[pageNum].push({yPct, hPct, xPct, wPct, color, label, pillBg, summary, scale});
+
+  // Floating DOM label
+  const cwrap=document.getElementById('cwrap');
+  const labelEl=document.createElement('div');
+  labelEl.className='ann-label';
+  labelEl.style.cssText=`top:${Math.max(topY,2)}px;left:${barX+barW+3}px`;
+
+  const pill=document.createElement('span');
+  pill.className='ann-pill';
+  pill.style.cssText=`background:${pillBg};color:${color};border-color:${color}50`;
+  pill.textContent=label;
+  labelEl.appendChild(pill);
+
+  if(summary){
+    const tip=document.createElement('span');
+    tip.style.cssText=`font-size:.58rem;color:${color};max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.85;margin-left:4px`;
+    tip.textContent=summary;
+    labelEl.appendChild(tip);
+  }
+
+  labelEl.addEventListener('click',()=>switchTab('digest'));
+  cwrap.appendChild(labelEl);
+}
+
+function clearAllAnnotations(){
+  pageAnnotations={};
+  const ac=document.getElementById('ac');
+  ac.getContext('2d').clearRect(0,0,ac.width,ac.height);
+  document.getElementById('cwrap').querySelectorAll('.ann-label').forEach(el=>el.remove());
+}
+
+function redrawAnnotations(pageNum){
+  const ac=document.getElementById('ac');
+  const ctx=ac.getContext('2d');
+  ctx.clearRect(0,0,ac.width,ac.height);
+  document.getElementById('cwrap').querySelectorAll('.ann-label').forEach(el=>el.remove());
+  const anns=pageAnnotations[pageNum]||[];
+  anns.forEach(a=>{
+    const newTopY=a.yPct*ac.height, newH=a.hPct*ac.height;
+    const x0=(a.xPct||0)*ac.width, w=(a.wPct||1)*ac.width;
+    drawParaAnnotation(ctx, ac, pageNum, newTopY, newH, a.color, a.label, a.pillBg, a.summary, zoomLv*1.4, x0, w);
+  });
+}
+
+/* ════════════════════════════════════════
+   DIGEST — show paragraphs of a branch,
+   auto-annotate ALL paragraphs on their pages
+════════════════════════════════════════ */
+function showDigestForBranch(mmData, branch, startPage, focusPage){
+  document.getElementById('dgEmpty').style.display='none';
+  const dc=document.getElementById('dgContent');
+  dc.innerHTML='';
+  document.getElementById('dgHd').style.display='flex';
+  document.getElementById('dgHdTitle').textContent='精读：'+(branch.label||'');
+  document.getElementById('dgHdPage').textContent='P'+startPage+' 起';
+
+  const hd=document.createElement('div'); hd.className='dg-sec-hd'; hd.style.marginBottom='12px';
+  const hdIcon=document.createElement('div'); hdIcon.className='dg-sec-icon'; hdIcon.style.cssText='background:#fff7ed;border:1px solid #fed7aa'; hdIcon.textContent='📖';
+  const hdTitle=document.createElement('div'); hdTitle.className='dg-sec-title';
+  hdTitle.textContent=(mmData.root||'')+' › '+(branch.label||'');
+  hd.appendChild(hdIcon); hd.appendChild(hdTitle); dc.appendChild(hd);
+
+  const paras=(branch.paragraphs||[]);
+
+  // Auto-annotate ALL paragraphs in this branch on the PDF
+  // Clear old annotations first
+  clearAllAnnotations();
+  // Re-render current page first, then annotate
+  setTimeout(()=>{
+    paras.forEach(p=>{
+      const cfg=PARA_TYPE_CFG[p.type]||PARA_TYPE_CFG.concept;
+      const pg=parseInt(p.page)||startPage;
+      const ks=(p.key_sentence||'').trim();
+      if(ks && pg===curPage){
+        autoAnnotateParagraph(pg, ks, p.type, cfg.label, cfg.color, cfg.pill, p.summary||'');
+      }
+    });
+    // If multiple pages involved, annotate them when user navigates
+    // Store pending annotations per page
+    paras.forEach(p=>{
+      const cfg=PARA_TYPE_CFG[p.type]||PARA_TYPE_CFG.concept;
+      const pg=parseInt(p.page)||startPage;
+      const ks=(p.key_sentence||'').trim();
+      if(ks && !pageAnnotations[pg]){
+        // Pre-populate so redrawAnnotations works on navigation
+        pageAnnotations[pg]=pageAnnotations[pg]||[];
+        // We'll store a "pending" sentinel and resolve on page render
+        pageAnnotations[pg].push({
+          _pending:true, _keySen:ks, _type:p.type,
+          color:cfg.color, label:cfg.label, pillBg:cfg.pill, summary:p.summary||'',
+          yPct:0.1, hPct:0.05, xPct:0, wPct:1, scale:zoomLv*1.4
+        });
+      }
+    });
+  }, 400);
+
+  renderDigestParaCards(dc, paras, startPage, mmData.glossary||[]);
+}
+
+
+
+
+// Fake AI template text guard
+const FAKE_PATTERNS=['从原文中提取','不超过35字','不超过','根据原文逻辑','根据原文','模块名称','模块名','完整原文段落','完整原文...'];
+function isFakeText(s){ return !s || FAKE_PATTERNS.some(p=>s.includes(p)); }
+
+// Called from mindmap 精读 button — renders paragraph data already in cache
+function runDigestParagraphs(mmData, startPage, branchLabel){
+  const branch=(mmData.branches||[]).find(b=>b.label===branchLabel)||(mmData.branches||[])[0];
+  if(!branch) return;
+  showDigestForBranch(mmData, branch, startPage, startPage);
+}
+
+// Shared paragraph card renderer
+function renderDigestParaCards(dc, paras, defaultPage, glossary){
+  const typeCfg={
+    definition:{label:'定义',cls:'concept',icon:'📌'},
+    example:   {label:'举例',cls:'example',icon:'💡'},
+    derivation:{label:'推导',cls:'formula',icon:'🔢'},
+    comparison:{label:'比较',cls:'theory', icon:'⚖️'},
+    note:      {label:'注意',cls:'caution',icon:'⚠️'},
+    summary:   {label:'总结',cls:'theory', icon:'📋'},
+    theorem:   {label:'定理',cls:'theory', icon:'⚡'},
+    concept:   {label:'概念',cls:'concept',icon:'📌'},
+  };
+
+  if(!paras||!paras.length){
+    const empty=document.createElement('div');
+    empty.style.cssText='padding:16px;color:var(--muted);font-size:.76rem;text-align:center';
+    empty.textContent='未能提取到段落内容（可能是扫描版PDF）';
+    dc.appendChild(empty);
+  } else {
+    paras.forEach((p, idx)=>{
+      const cfg=typeCfg[p.type]||typeCfg.concept;
+      const pg=parseInt(p.page)||defaultPage;
+      const fullPara=(p.full_paragraph||p.full_para||'').trim();
+      const rawKs=(p.key_sentence||'').trim();
+      const keySen=isFakeText(rawKs)?'':rawKs;
+
+      const card=document.createElement('div');
+      card.className='pc '+cfg.cls;
+      card.style.cursor='default';
+
+      // §N + tag + page
+      const topRow=document.createElement('div');
+      topRow.style.cssText='display:flex;align-items:center;gap:6px;margin-bottom:5px';
+      const numEl=document.createElement('span');
+      numEl.style.cssText='font-family:"JetBrains Mono",monospace;font-size:.58rem;background:rgba(0,0,0,.1);padding:1px 5px;border-radius:3px;color:inherit;opacity:.7';
+      numEl.textContent='§'+(idx+1);
+      const tagEl=document.createElement('div'); tagEl.className='ptag'; tagEl.textContent=cfg.icon+' '+cfg.label;
+      const pgBtn=document.createElement('span');
+      pgBtn.style.cssText='font-size:.58rem;font-family:"JetBrains Mono",monospace;background:rgba(0,0,0,.12);padding:1px 5px;border-radius:3px;cursor:pointer;margin-left:auto;opacity:.8';
+      pgBtn.textContent='P'+pg; pgBtn.addEventListener('click',()=>jumpPage(pg));
+      topRow.appendChild(numEl); topRow.appendChild(tagEl); topRow.appendChild(pgBtn);
+      card.appendChild(topRow);
+
+      // Summary
+      const sumEl=document.createElement('div'); sumEl.className='pc-text'; sumEl.style.marginBottom='7px';
+      sumEl.textContent=isFakeText(p.summary)?'（AI未能提取有效内容）':p.summary;
+      card.appendChild(sumEl);
+
+      // Key sentence
+      if(keySen){
+        const keyRow=document.createElement('div');
+        keyRow.style.cssText='font-size:.72rem;color:var(--muted);padding:5px 8px;background:rgba(0,0,0,.04);border-radius:5px;margin-bottom:6px;display:flex;align-items:flex-start;gap:7px;line-height:1.5';
+        const keyTxt=document.createElement('span'); keyTxt.style.flex='1';
+        keyTxt.innerHTML='<span style="opacity:.6;font-size:.62rem;font-family:\'JetBrains Mono\',monospace">关键句</span> 「'+keySen+'」';
+        const hlBtn=document.createElement('button');
+        hlBtn.style.cssText='flex-shrink:0;border:1px solid var(--bdr);border-radius:4px;background:#fff;padding:2px 7px;font-size:.62rem;color:var(--blue);cursor:pointer;white-space:nowrap;font-family:"Noto Sans SC",sans-serif';
+        hlBtn.textContent='高亮 ↗';
+        const _sn=keySen, _pg=pg;
+        hlBtn.addEventListener('click',()=>{ jumpPage(_pg); setTimeout(()=>highlightText(_pg,_sn),300); });
+        keyRow.appendChild(keyTxt); keyRow.appendChild(hlBtn);
+        card.appendChild(keyRow);
+      }
+
+      // Full paragraph
+      if(fullPara && !isFakeText(fullPara)){
+        const fullWrap=document.createElement('div');
+        const togSpan=document.createElement('span'); togSpan.textContent='▶';
+        const togTxt=document.createTextNode(' 展开完整原文');
+        const toggleBtn=document.createElement('button');
+        toggleBtn.style.cssText='border:none;background:none;padding:0;font-size:.65rem;color:var(--muted2);cursor:pointer;display:flex;align-items:center;gap:3px;font-family:"Noto Sans SC",sans-serif;margin-bottom:4px';
+        toggleBtn.appendChild(togSpan); toggleBtn.appendChild(togTxt);
+        const fullBox=document.createElement('div');
+        fullBox.style.cssText='display:none;background:rgba(255,255,255,.6);border:1px solid rgba(0,0,0,.08);border-radius:5px;padding:8px 10px;font-size:.72rem;color:var(--ink2);line-height:1.75;font-family:"Noto Serif SC",serif;letter-spacing:.03em';
+        fullBox.textContent=fullPara;
+        toggleBtn.addEventListener('click',()=>{
+          const isOpen=fullBox.style.display!=='none';
+          fullBox.style.display=isOpen?'none':'block';
+          togSpan.textContent=isOpen?'▶':'▼';
+          togTxt.textContent=isOpen?' 展开完整原文':' 收起原文';
+        });
+        fullWrap.appendChild(toggleBtn); fullWrap.appendChild(fullBox);
+        card.appendChild(fullWrap);
+      }
+
+      dc.appendChild(card);
+    });
+  }
+
+  // ── Glossary section ────────────────────────────
+  if(glossary && glossary.length > 0){
+    const glSection=document.createElement('div');
+    glSection.style.cssText='margin-top:20px;border-top:1.5px solid var(--bdr);padding-top:14px';
+
+    const glHd=document.createElement('div');
+    glHd.style.cssText='display:flex;align-items:center;gap:6px;margin-bottom:10px;cursor:pointer;user-select:none';
+    const glTog=document.createElement('span'); glTog.textContent='▼'; glTog.style.cssText='font-size:.7rem;color:var(--muted2);transition:transform .2s';
+    const glTitle=document.createElement('span'); glTitle.style.cssText='font-size:.8rem;font-weight:600;color:var(--ink2)'; glTitle.textContent='📚 本节术语对照';
+    const glCount=document.createElement('span'); glCount.style.cssText='font-size:.63rem;background:var(--amber-l);color:var(--amber);padding:1px 6px;border-radius:10px;font-family:"JetBrains Mono",monospace';
+    glCount.textContent=glossary.length+'词';
+    glHd.appendChild(glTog); glHd.appendChild(glTitle); glHd.appendChild(glCount);
+
+    const glTable=document.createElement('div');
+    glTable.style.cssText='border:1px solid var(--bdr);border-radius:8px;overflow:hidden;background:#fff';
+
+    glossary.forEach((g,gi)=>{
+      const row=document.createElement('div');
+      row.style.cssText=`display:grid;grid-template-columns:auto 1fr 1fr;gap:0;border-bottom:${gi<glossary.length-1?'1px solid var(--bdr)':'none'};min-height:36px;align-items:stretch`;
+
+      const idxCell=document.createElement('div');
+      idxCell.style.cssText='padding:7px 8px;background:var(--cream2);font-size:.58rem;font-family:"JetBrains Mono",monospace;color:var(--muted2);border-right:1px solid var(--bdr);display:flex;align-items:center;min-width:24px;justify-content:center';
+      idxCell.textContent=gi+1;
+
+      const zhCell=document.createElement('div');
+      zhCell.style.cssText='padding:7px 10px;font-size:.75rem;font-weight:500;color:var(--ink);border-right:1px solid var(--bdr);display:flex;align-items:center;gap:4px;flex-direction:column;justify-content:center';
+      const zhTxt=document.createElement('span'); zhTxt.textContent=g.zh||'';
+      const zhBrief=document.createElement('span'); zhBrief.style.cssText='font-size:.62rem;color:var(--muted);font-weight:400;line-height:1.3'; zhBrief.textContent=g.brief||'';
+      zhCell.appendChild(zhTxt); if(g.brief) zhCell.appendChild(zhBrief);
+
+      const enCell=document.createElement('div');
+      enCell.style.cssText='padding:7px 10px;font-size:.72rem;font-family:"JetBrains Mono",monospace;color:var(--blue);display:flex;align-items:center;font-style:italic';
+      enCell.textContent=g.en||'';
+
+      row.appendChild(idxCell); row.appendChild(zhCell); row.appendChild(enCell);
+      glTable.appendChild(row);
+    });
+
+    glHd.addEventListener('click',()=>{
+      const isOpen=glTable.style.display!=='none';
+      glTable.style.display=isOpen?'none':'block';
+      glTog.style.transform=isOpen?'rotate(-90deg)':'rotate(0)';
+    });
+
+    glSection.appendChild(glHd); glSection.appendChild(glTable);
+    dc.appendChild(glSection);
+  }
+}
+
+async function highlightText(pageNum, searchText, attempt=0){
+  if(!searchText||!searchText.trim()) return;
+  if(pageNum!==curPage){ if(attempt<14) setTimeout(()=>highlightText(pageNum, searchText, attempt+1), 140); return; }
+  if(!pageItems[pageNum]){ try{ await ensureTextLayer(pageNum); }catch(e){} }
+  const items=pageItems[pageNum];
+
+  const hc=document.getElementById('hc');
+  const ctx=hc.getContext('2d');
+  ctx.clearRect(0,0,hc.width,hc.height);
+
+  const scale=zoomLv*1.4;
+  const vp=(_lastVpPage===pageNum)?_lastVp:null;
+  const needle=normalizeForMatch(searchText);
+  if(needle.length<4) return;
+  if(!items||!items.length){
+    if(_ocrEnabled){
+      try{
+        const o=await ensureOcrPage(pageNum, 'hl');
+        const box=ocrFindBox(o, searchText||'');
+        if(box){
+          const rx=hc.width/(o.w||hc.width);
+          const ry=hc.height/(o.h||hc.height);
+          const x=Math.max(0, box.x0*rx-6);
+          const y=Math.max(0, box.y0*ry-8);
+          const w=Math.max(80, (box.x1-box.x0)*rx+12);
+          const h=Math.max(18, (box.y1-box.y0)*ry+14);
+          ctx.fillStyle='rgba(253,224,71,0.65)';
+          ctx.fillRect(x, y, w, h);
+          ctx.strokeStyle='rgba(217,119,6,0.95)';
+          ctx.lineWidth=1.5;
+          ctx.strokeRect(x, y, w, h);
+          const sc=document.getElementById('pdfScroll');
+          setTimeout(()=>sc.scrollTo({top:Math.max(0,y-sc.clientHeight/3),behavior:'smooth'}),200);
+          return;
+        }
+      }catch(e){}
+    }
+    toast('err','该页无法高亮（缺少文字层且OCR失败）');
+    return;
+  }
+
+  const idx=getPageIndex(pageNum);
+  const matchIdx=bestHitIn(idx.full, needle);
+  if(matchIdx<0) { toast('err','未能在本页定位到关键句'); return; }
+  const charToItem=idx.map;
+
+  const endIdx=Math.min(matchIdx+needle.length-1, charToItem.length-1);
+  const startItem=items[charToItem[matchIdx]];
+  const endItem=items[charToItem[endIdx]];
+  if(!startItem?.transform) return;
+
+  let x=0, hlY=0, hlH=20, w=80;
+  if(vp){
+    const b1=itemBoxOnCanvas(startItem, vp);
+    const b2=itemBoxOnCanvas(endItem||startItem, vp);
+    if(b1 && b2){
+      const left=Math.min(b1.x, b2.x);
+      const right=Math.max(b1.x+b1.w, b2.x+b2.w);
+      const top=Math.min(b1.top, b2.top);
+      const bottom=Math.max(b1.bottom, b2.bottom);
+      const h=Math.max(12, bottom-top);
+      x=left;
+      w=Math.max(right-left, 70);
+      hlH=h*1.6;
+      hlY=Math.max(0, top - h*0.35);
+    }
+  } else {
+    const tx=startItem.transform;
+    const xx=tx[4]*scale;
+    const rawY=tx[5]*scale;
+    const yy=hc.height-rawY;
+    const h=Math.abs(tx[3]||12)*scale;
+    const tx2=(endItem||startItem).transform;
+    const x2=tx2[4]*scale+((endItem||startItem).width||30)*scale;
+    const ww=Math.max(x2-xx, 70);
+    x=xx; w=ww;
+    hlH=h*1.5;
+    hlY=yy-hlH*0.85;
+  }
+
+  ctx.fillStyle='rgba(253,224,71,0.65)';
+  ctx.fillRect(x-3, hlY, w+6, hlH);
+  ctx.strokeStyle='rgba(217,119,6,0.95)';
+  ctx.lineWidth=1.5;
+  ctx.strokeRect(x-3, hlY, w+6, hlH);
+
+  // Scroll to highlight
+  const sc=document.getElementById('pdfScroll');
+  setTimeout(()=>sc.scrollTo({top:Math.max(0,hlY-sc.clientHeight/3),behavior:'smooth'}),200);
+
+  // Fade out after 5s
+  let fadeTimer=null;
+  clearTimeout(fadeTimer);
+  fadeTimer=setTimeout(()=>{
+    let a=0.65;
+    const id=setInterval(()=>{
+      a-=0.025; if(a<=0){clearInterval(id);ctx.clearRect(0,0,hc.width,hc.height);return;}
+      ctx.clearRect(0,0,hc.width,hc.height);
+      ctx.fillStyle=`rgba(253,224,71,${a})`;
+      ctx.fillRect(x-3,hlY,w+6,hlH);
+    },60);
+  },4500);
+}
+
+/* ════════════════════════════════════════
+   DIGEST (paragraph analysis)
+════════════════════════════════════════ */
+async function runDigest(concept, startPage, snippet=''){
+  clearAllAnnotations();
+  document.getElementById('dgEmpty').style.display='none';
+  const dc=document.getElementById('dgContent');
+  dc.innerHTML='';
+  document.getElementById('dgHd').style.display='flex';
+  document.getElementById('dgHdTitle').textContent='精读：'+concept;
+  document.getElementById('dgHdPage').textContent='第 '+startPage+' 页起';
+
+  const loadDiv=document.createElement('div');
+  loadDiv.className='mm-loading';
+  loadDiv.innerHTML=`<div class="tind"><span></span><span></span><span></span></div><span>AI 逐段解析「${concept}」...</span>`;
+  dc.appendChild(loadDiv);
+
+  if(!getKey()){ loadDiv.innerHTML='<span style="color:var(--muted)">⚠️ 请先填入 API Key</span>'; return; }
+
+  // Collect section text: from startPage, up to next sibling or +8 pages
+  const flatIdx=outlineFlat.findIndex(f=>f.page===startPage||f.title===concept);
+  let endPage=Math.min(startPage+CFG.digestMaxPages, pdfDoc?pdfDoc.numPages:startPage+CFG.digestMaxPages);
+  if(flatIdx>=0){
+    const myLevel=outlineFlat[flatIdx].level;
+    for(let j=flatIdx+1;j<outlineFlat.length;j++){
+      if(outlineFlat[j].level<=myLevel && outlineFlat[j].page>startPage){
+        endPage=Math.min(outlineFlat[j].page-1, startPage+CFG.digestMaxPages); break;
+      }
+    }
+  }
+
+  // Build text with page markers
+  let fullText='';
+  for(let p=startPage;p<=endPage;p++){
+    if(_ocrEnabled && _textCoverage<0.30 && (!pageTexts[p] || pageTexts[p].replace(/\s+/g,'').length<80)){
+      try{ await ensurePageText(p, 'digest'); }catch(e){}
+    }
+    const t=(pageTexts[p]||'').trim();
+    if(t) fullText+=`\n[P${p}]\n${t}`;
+    if(fullText.length>CFG.digestMaxChars) break;
+  }
+
+  const prompt=`你是专业教材助教。请对教材小节「${concept}」的原文进行逐段精读分析。
+
+原文（含页码标记）：
+${fullText||'（无文字内容）'}
+
+要求：
+1. 按照原文的实际段落顺序，识别每个有意义的段落（忽略标题、页眉页脚、纯数字行）
+2. 每段输出：
+   - type: 该段类型（definition定义 / example举例 / derivation推导 / comparison比较 / note注意 / summary总结）
+   - page: 该段所在页码（从[PX]判断）
+   - summary: 这段在讲什么（1-2句，口语化，说清楚核心意思）
+   - key_sentence: 从原文中截取最重要的一句话（必须是原文真实文字，≤40字）
+   - full_paragraph: 该段的完整原文文字（真实原文，用于展示）
+3. 输出所有有实质内容的段落（通常5-10段）
+4. 按原文顺序排列
+
+只输出JSON，不要其他文字：
+{
+  "paragraphs": [
+    {
+      "type": "definition",
+      "page": 82,
+      "summary": "介绍双绞线的物理构成",
+      "key_sentence": "双绞线由两根互相绝缘的铜导线绞合而成",
+      "full_paragraph": "双绞线（Twisted Pair）是最常用的有线传输介质之一。它由两根互相绝缘的铜导线绞合而成，绞合的目的是减少电磁干扰。"
+    }
+  ]
+}`;
+
+  try{
+    setStatus('spin','...');
+    const raw=await callAI(prompt);
+    setStatus('ok','OK');
+    const data=extractJSON(raw);
+    loadDiv.remove();
+    // Section header
+    const hd=document.createElement('div'); hd.className='dg-sec-hd'; hd.style.marginBottom='12px';
+    const hdIcon=document.createElement('div'); hdIcon.className='dg-sec-icon'; hdIcon.style.cssText='background:#fff7ed;border:1px solid #fed7aa'; hdIcon.textContent='📖';
+    const hdTitle=document.createElement('div'); hdTitle.className='dg-sec-title'; hdTitle.textContent=`段落精读 · ${concept}`;
+    hd.appendChild(hdIcon); hd.appendChild(hdTitle); dc.appendChild(hd);
+    renderDigestParaCards(dc, data.paragraphs||[], startPage, data.glossary||[]);
+  }catch(e){
+    setStatus('err','ERR');
+    loadDiv.innerHTML=`<span style="color:var(--rose)">解析失败：${e.message}</span>`;
+  }
+}
+
+async function analyzeCurrentPage(){
+  if(!getKey()){ toast('err','⚠️ 请先填入 API Key'); return; }
+  if(!pdfDoc){ toast('err','请先上传课本'); return; }
+  switchTab('digest');
+  await runDigest('本页内容', curPage, '');
+}
+
+function renderDigest(dc, data, concept, startPage, snippet=''){
+  const typeCfg={
+    definition: {label:'定义',     cls:'concept', icon:'📌'},
+    example:    {label:'举例',     cls:'example', icon:'💡'},
+    derivation: {label:'推导',     cls:'formula', icon:'🔢'},
+    comparison: {label:'比较',     cls:'theory',  icon:'⚖️'},
+    note:       {label:'注意',     cls:'caution', icon:'⚠️'},
+    summary:    {label:'总结',     cls:'theory',  icon:'📋'},
+    theorem:    {label:'定理',     cls:'theory',  icon:'⚡'},
+    concept:    {label:'概念',     cls:'concept', icon:'📌'},
+  };
+
+  // Section header
+  const hd=document.createElement('div');
+  hd.className='dg-sec-hd';
+  hd.style.marginBottom='12px';
+  const hdIcon=document.createElement('div');
+  hdIcon.className='dg-sec-icon';
+  hdIcon.style.cssText='background:#fff7ed;border:1px solid #fed7aa';
+  hdIcon.textContent='📖';
+  const hdTitle=document.createElement('div');
+  hdTitle.className='dg-sec-title';
+  hdTitle.textContent=`段落精读 · ${concept}`;
+  hd.appendChild(hdIcon); hd.appendChild(hdTitle);
+  dc.appendChild(hd);
+
+  const paras=data.paragraphs||[];
+  if(!paras.length){
+    const empty=document.createElement('div');
+    empty.style.cssText='padding:16px;color:var(--muted);font-size:.76rem;text-align:center';
+    empty.textContent='未能提取到段落内容（可能是扫描版PDF）';
+    dc.appendChild(empty); return;
+  }
+
+  paras.forEach((p, idx)=>{
+    const cfg=typeCfg[p.type]||typeCfg.concept;
+    const pg=parseInt(p.page)||startPage;
+    const fullPara=(p.full_paragraph||'').trim();
+    const keySen=(p.key_sentence||'').trim();
+
+    const card=document.createElement('div');
+    card.className='pc '+cfg.cls;
+    card.style.cursor='default';
+
+    // ── Row 1: tag + page + paragraph number
+    const topRow=document.createElement('div');
+    topRow.style.cssText='display:flex;align-items:center;gap:6px;margin-bottom:5px';
+
+    const numEl=document.createElement('span');
+    numEl.style.cssText='font-family:"JetBrains Mono",monospace;font-size:.58rem;background:rgba(0,0,0,.1);padding:1px 5px;border-radius:3px;color:inherit;opacity:.7';
+    numEl.textContent='§'+(idx+1);
+
+    const tagEl=document.createElement('div');
+    tagEl.className='ptag';
+    tagEl.textContent=cfg.icon+' '+cfg.label;
+
+    const pageBtn=document.createElement('span');
+    pageBtn.style.cssText='font-size:.58rem;font-family:"JetBrains Mono",monospace;background:rgba(0,0,0,.12);padding:1px 5px;border-radius:3px;cursor:pointer;margin-left:auto;opacity:.8';
+    pageBtn.textContent='P'+pg;
+    pageBtn.addEventListener('click',()=>jumpPage(pg));
+
+    topRow.appendChild(numEl); topRow.appendChild(tagEl); topRow.appendChild(pageBtn);
+    card.appendChild(topRow);
+
+    // ── Row 2: AI summary
+    const sumEl=document.createElement('div');
+    sumEl.className='pc-text';
+    sumEl.style.marginBottom='7px';
+    sumEl.textContent=p.summary||'';
+    card.appendChild(sumEl);
+
+    // ── Row 3: Key sentence with highlight button
+    if(keySen){
+      const keyRow=document.createElement('div');
+      keyRow.className='pc-snippet';
+      keyRow.style.cssText='font-size:.72rem;color:var(--muted);padding:5px 8px;background:rgba(0,0,0,.04);border-radius:5px;margin-bottom:6px;display:flex;align-items:flex-start;gap:7px;line-height:1.5';
+
+      const keyTxt=document.createElement('span');
+      keyTxt.style.flex='1';
+      keyTxt.innerHTML='<span style="opacity:.6;font-size:.62rem;font-family:\'JetBrains Mono\',monospace">关键句</span> 「'+keySen+'」';
+
+      const hlBtn=document.createElement('button');
+      hlBtn.style.cssText='flex-shrink:0;border:1px solid var(--bdr);border-radius:4px;background:#fff;padding:2px 7px;font-size:.62rem;color:var(--blue);cursor:pointer;white-space:nowrap;font-family:"Noto Sans SC",sans-serif';
+      hlBtn.textContent='高亮 ↗';
+      hlBtn.addEventListener('click',()=>{
+        jumpPage(pg);
+        setTimeout(()=>highlightText(pg, keySen), 300);
+      });
+
+      keyRow.appendChild(keyTxt); keyRow.appendChild(hlBtn);
+      card.appendChild(keyRow);
+    }
+
+    // ── Row 4: Full paragraph (collapsible)
+    if(fullPara){
+      const fullWrap=document.createElement('div');
+
+      const toggleBtn=document.createElement('button');
+      toggleBtn.style.cssText='border:none;background:none;padding:0;font-size:.65rem;color:var(--muted2);cursor:pointer;display:flex;align-items:center;gap:3px;font-family:"Noto Sans SC",sans-serif;margin-bottom:4px';
+      toggleBtn.innerHTML='<span id="ftog-'+idx+'">▶</span> 展开完整原文';
+
+      const fullBox=document.createElement('div');
+      fullBox.style.cssText='display:none;background:rgba(255,255,255,.6);border:1px solid rgba(0,0,0,.08);border-radius:5px;padding:8px 10px;font-size:.72rem;color:var(--ink2);line-height:1.75;font-family:"Noto Serif SC",serif;letter-spacing:.03em';
+      fullBox.textContent=fullPara;
+
+      toggleBtn.addEventListener('click',()=>{
+        const isOpen=fullBox.style.display!=='none';
+        fullBox.style.display=isOpen?'none':'block';
+        document.getElementById('ftog-'+idx).textContent=isOpen?'▶':'▼';
+        toggleBtn.childNodes[1].textContent=isOpen?' 展开完整原文':' 收起原文';
+      });
+
+      fullWrap.appendChild(toggleBtn); fullWrap.appendChild(fullBox);
+      card.appendChild(fullWrap);
+    }
+
+    dc.appendChild(card);
+  });
+}
+
+/* ════════════════════════════════════════
+   PDF RENDER & NAVIGATION
+════════════════════════════════════════ */
+function changeZoom(d){ zoomLv=Math.max(.5,Math.min(2.5,zoomLv+d)); renderPage(curPage); }
+
+async function renderPage(pageNum){
+  if(!pdfDoc) return;
+  pageNum=Math.max(1,Math.min(pageNum,pdfDoc.numPages));
+  const pg=await pdfDoc.getPage(pageNum);
+  document.getElementById('zoomLbl').textContent=Math.round(zoomLv*100)+'%';
+  const vp=pg.getViewport({scale:zoomLv*1.4});
+  _lastVp = vp;
+  _lastVpPage = pageNum;
+  const mc=document.getElementById('mc'), hc=document.getElementById('hc'), ac=document.getElementById('ac');
+  mc.width=vp.width; mc.height=vp.height;
+  hc.width=vp.width; hc.height=vp.height;
+  ac.width=vp.width; ac.height=vp.height;
+  await pg.render({canvasContext:mc.getContext('2d'),viewport:vp}).promise;
+  curPage=pageNum;
+  document.getElementById('pnum').textContent=`${pageNum} / ${pdfDoc.numPages}`;
+  syncOutlineToPage(pageNum);
+
+  // Handle annotations for this page
+  const anns=pageAnnotations[pageNum]||[];
+  if(anns.length){
+    // Resolve any pending annotations (pre-stored key sentences not yet positioned)
+    const pending=anns.filter(a=>a._pending);
+    const resolved=anns.filter(a=>!a._pending);
+    pageAnnotations[pageNum]=resolved;
+    document.getElementById('cwrap').querySelectorAll('.ann-label').forEach(el=>el.remove());
+    // Redraw resolved ones
+    resolved.forEach(a=>{
+      const x0=(a.xPct||0)*ac.width, w=(a.wPct||1)*ac.width;
+      drawParaAnnotation(ac.getContext('2d'), ac, pageNum, a.yPct*ac.height, a.hPct*ac.height, a.color, a.label, a.pillBg, a.summary, zoomLv*1.4, x0, w);
+    });
+    // Resolve pending ones now that text items are loaded
+    pending.forEach(a=>{
+      autoAnnotateParagraph(pageNum, a._keySen, a._type, a.label, a.color, a.pillBg, a.summary);
+    });
+  } else {
+    document.getElementById('cwrap').querySelectorAll('.ann-label').forEach(el=>el.remove());
+  }
+}
+
+async function goPage(d){ if(!pdfDoc) return; await renderPage(curPage+d); }
+
+async function jumpPage(p){
+  await renderPage(parseInt(p)||1);
+  flashPage();
+  document.getElementById('pdfScroll').scrollTo({top:0,behavior:'smooth'});
+}
+
+function flashPage(){
+  const hc=document.getElementById('hc'), ctx=hc.getContext('2d');
+  let a=0.18;
+  ctx.fillStyle=`rgba(217,119,6,${a})`;
+  ctx.fillRect(0,0,hc.width,hc.height);
+  const id=setInterval(()=>{
+    a-=0.015; if(a<=0){clearInterval(id);ctx.clearRect(0,0,hc.width,hc.height);return;}
+    ctx.clearRect(0,0,hc.width,hc.height);
+    ctx.fillStyle=`rgba(217,119,6,${a})`;
+    ctx.fillRect(0,0,hc.width,hc.height);
+  },30);
+}
+
+/* ════════════════════════════════════════
+   QUESTIONS
+════════════════════════════════════════ */
+async function loadQuestions(file){
+  let loaded=[];
+  const name=(file.name||'').toLowerCase();
+  if(name.endsWith('.doc')||name.endsWith('.docx')){
+    toast('err','暂不支持直接解析 Word，请另存为 TXT/PDF 或复制为 TXT');
+    return;
+  }
+  if(name.endsWith('.pdf')){
+    try{
+      setPrg(10,'解析题目PDF...');
+      const buf=await file.arrayBuffer();
+      const qpdf=await pdfjsLib.getDocument({data:buf,useSystemFonts:true}).promise;
+      let full='';
+      const maxPages=Math.min(qpdf.numPages, 60);
+      for(let i=1;i<=maxPages;i++){
+        const pg=await qpdf.getPage(i);
+        const tc=await pg.getTextContent();
+        const lines=itemsToLines(tc.items);
+        const txt=lines.length?lines.join('\n'):tc.items.map(s=>s.str).join(' ');
+        full+=`\n${txt}\n`;
+        if(full.length>220000) break;
+        if(i%6===0) setPrg(10+Math.round(i/maxPages*60),`提取文字 ${i}/${maxPages}...`);
+      }
+      const rawLines=full.split(/\n|\r/).map(l=>l.replace(/\s+/g,' ').trim()).filter(l=>l.length>0);
+      const blocks=[];
+      let cur=null;
+      function pushCur(){
+        if(!cur) return;
+        const t=cur.join(' ').replace(/\s+/g,' ').trim();
+        if(t.length>6) blocks.push(t);
+        cur=null;
+      }
+      for(const ln of rawLines){
+        if(/^(第\s*\d+\s*题|\d{1,3}\s*[\.、\)]\s+).+/.test(ln)){
+          pushCur();
+          cur=[ln.replace(/^(第\s*\d+\s*题|\d{1,3}\s*[\.、\)])\s*/,'').trim()];
+        } else if(cur){
+          if(cur.join(' ').length<2600) cur.push(ln);
+        } else {
+          if(ln.length>10) blocks.push(ln);
+        }
+      }
+      pushCur();
+      loaded=blocks.map((t,i)=>({id:i,text:t,type:'essay',options:null,answer:null,page:null,_answered:null}));
+      if(!loaded.length){ toast('err','未能从题目PDF提取到可用文本（可能无文字层）'); return; }
+      toast('ok',`✅ 题目PDF解析完成 · ${loaded.length} 题`);
+    }catch(e){
+      toast('err','题目PDF解析失败：'+(e?.message||''));
+      return;
+    }
+  } else {
+    const txt=await file.text();
+    if(name.endsWith('.json')){
+      try{ loaded=JSON.parse(txt); if(!Array.isArray(loaded)) loaded=loaded.questions||[]; }
+      catch{ toast('err','❌ JSON 格式有误'); return; }
+    } else {
+      loaded=txt.split('\n').map(l=>l.trim()).filter(l=>l.length>6)
+        .map((l,i)=>({id:i,text:l,type:'essay',options:null,answer:null,page:null,_answered:null}));
+    }
+  }
+  questions=loaded.map((q,i)=>({...q,id:i,_answered:null}));
+  if(pdfDoc&&getKey()){ toast('ok',`✅ 载入 ${questions.length} 题，AI 匹配页码中...`); await matchPages(); }
+  else toast('ok',`✅ 载入 ${questions.length} 题`);
+  renderQuestions(); switchTab('questions');
+}
+
+async function matchPages(){
+  function pageSig(p){
+    if(_pageSigCache[p]) return _pageSigCache[p];
+    const s=normalizeForMatch(pageTexts[p]||'');
+    _pageSigCache[p]=s;
+    return s;
+  }
+  function rankPages(qText){
+    const qsig=normalizeForMatch(qText||'');
+    if(qsig.length<6) return [];
+    const grams=[];
+    const step=Math.max(1, Math.floor(qsig.length/10));
+    for(let i=0;i<qsig.length-1;i+=step){
+      const g=qsig.slice(i,i+2);
+      if(g.length===2) grams.push(g);
+      if(grams.length>=10) break;
+    }
+    const uniq=Array.from(new Set(grams)).filter(g=>g && g!=='的' && g!=='了');
+    const scores=[];
+    for(let p=1;p<=pdfDoc.numPages;p++){
+      const ps=pageSig(p);
+      if(!ps) continue;
+      let sc=0;
+      for(const g of uniq) if(ps.includes(g)) sc++;
+      if(sc>0) scores.push({p,sc});
+    }
+    scores.sort((a,b)=>b.sc-a.sc);
+    return scores.slice(0,CFG.matchCandidates).map(x=>x.p);
+  }
+
+  const limit=Math.min(CFG.matchMaxQuestions, questions.length);
+  const needs=[];
+  for(let i=0;i<limit;i++){
+    const q=questions[i];
+    if(q.page) continue;
+    const cands=rankPages(q.text||'');
+    if(cands.length && cands[0]){
+      q.page=cands[0];
+      if(cands.length>1 && cands[0]===cands[1]) q.page=cands[0];
+      if(cands[0] && (cands[1]===undefined)) q._page_conf=0.55;
+      else q._page_conf=0.45;
+      needs.push({idx:i, cands});
+    } else {
+      needs.push({idx:i, cands:[]});
+    }
+  }
+  renderQuestions();
+
+  const aiNeed=needs.filter(x=>!questions[x.idx].page || questions[x.idx]._page_conf<0.5).slice(0,12);
+  if(!aiNeed.length) { toast('ok','✅ 页码匹配完成'); return; }
+
+  const payload=aiNeed.map(x=>{
+    const q=questions[x.idx];
+    const cands=(x.cands&&x.cands.length)?x.cands:rankPages(q.text||'').slice(0,CFG.matchCandidates);
+    const candText=cands.map(p=>`[P${p}] ${(pageTexts[p]||'').replace(/\s+/g,' ').substring(0,220)}`).join('\n');
+    return `Q${x.idx+1}: ${q.text}\n候选页：\n${candText||'（无）'}`;
+  }).join('\n\n');
+
+  try{
+    const raw=await callAI(`从每道题的“候选页”里选出最可能来源页。只输出JSON：\n{"matches":[{"q":1,"page":5}]}\n其中q是题目序号（从1开始，对应Q1/Q2...）。\n\n${payload}`);
+    const data=extractJSON(raw);
+    (data.matches||[]).forEach(m=>{
+      const qi=(m.q||0)-1;
+      if(questions[qi] && m.page) questions[qi].page=m.page;
+    });
+    renderQuestions(); toast('ok','✅ 页码匹配完成');
+  }catch(e){ toast('err','页码匹配未完全成功'); }
+}
+
+async function generateQuestions(){
+  if(!getKey()){ toast('err','⚠️ 请先填入 API Key'); return; }
+  if(!pdfDoc){ toast('err','请先上传课本'); return; }
+  toast('ok','⚙️ 出题中...');
+  const pt=(pageTexts[curPage]||'').substring(0,1400);
+  try{
+    const raw=await callAI(`根据以下课本内容，出5道四选一选择题和2道简答题。只输出JSON：\n{"questions":[{"type":"choice","text":"题目","options":["A.","B.","C.","D."],"answer":"A","knowledge":"考点"},{"type":"essay","text":"简答","answer":"要点","knowledge":"考点"}]}\n第${curPage}页：${pt}`);
+    const data=extractJSON(raw);
+    const newQs=(data.questions||[]).map((q,i)=>({...q,id:questions.length+i,page:curPage,_answered:null}));
+    questions=[...questions,...newQs];
+    renderQuestions(); switchTab('questions');
+    toast('ok',`✅ 生成 ${newQs.length} 道题`);
+  }catch(e){ toast('err','出题失败：'+e.message); }
+}
+
+function renderQuestions(){
+  const scroll=document.getElementById('qScroll');
+  document.getElementById('qEmpty').style.display=questions.length?'none':'block';
+  scroll.querySelectorAll('.qcard').forEach(el=>el.remove());
+  const answered=questions.filter(q=>q._answered!==null).length;
+  document.getElementById('qPrgFill').style.width=(questions.length?Math.round(answered/questions.length*100):0)+'%';
+  document.getElementById('qPrgTxt').textContent=`${answered} / ${questions.length} 题`;
+  document.getElementById('qTbTitle').textContent=`题目 (${questions.length} 题)`;
+
+  questions.forEach((q,idx)=>{
+    const card=document.createElement('div');
+    card.className='qcard'+(q._answered===true?' correct':q._answered===false?' wrong':'');
+    card.id='qcard-'+idx;
+
+    const ttag=q.type==='choice'?'<span class="qtag choice">选择</span>':'<span class="qtag essay">简答</span>';
+    const pchip=q.page?`<div class="qsrc"><span class="qpchip" id="qpchip-${idx}">📍 第 ${q.page} 页 →</span>${q.knowledge?`<span style="font-size:.6rem;color:var(--muted2)">${q.knowledge}</span>`:''}</div>`:'';
+
+    let body='';
+    if(q.type==='choice'&&q.options?.length){
+      body=`<div class="opts">${q.options.map((o,oi)=>{const lt=String.fromCharCode(65+oi);return`<button class="obtn" id="opt-${idx}-${oi}" data-q="${idx}" data-oi="${oi}" data-lt="${lt}" data-ans="${q.answer||''}"><span class="okey">${lt}.</span>${o}</button>`;}).join('')}</div>`;
+    } else {
+      body=`<textarea class="essay-in" id="essay-${idx}" placeholder="写下答案..." rows="2"></textarea>
+        <div style="margin-top:5px;display:flex;gap:5px">
+          <button class="abtn ghost" style="font-size:.64rem;padding:3px 8px" data-reveal="${idx}">查看答案</button>
+          <button class="abtn amber" style="font-size:.64rem;padding:3px 8px" data-grade="${idx}">AI 批改</button>
+        </div>
+        <div class="ans-box" id="ans-${idx}"><div style="font-weight:700;margin-bottom:2px">✅ 参考答案</div>${q.answer||'（无）'}</div>
+        <div class="ai-exp" id="aiexp-${idx}"></div>`;
+    }
+
+    card.innerHTML=`<div class="qcard-hd" data-toggle="${idx}"><span class="qidx">${String(idx+1).padStart(2,'0')}</span><span class="qtxt">${q.text}</span>${ttag}</div>${pchip}<div class="qbody" id="qbody-${idx}">${body}</div>`;
+    scroll.appendChild(card);
+  });
+
+  // Attach events after innerHTML (safe — no user text in event attributes)
+  questions.forEach((q,idx)=>{
+    const card=document.getElementById('qcard-'+idx);
+    // Toggle
+    card.querySelector('[data-toggle]').addEventListener('click',()=>toggleQCard(idx));
+    // Page chip
+    const chip=document.getElementById('qpchip-'+idx);
+    if(chip) chip.addEventListener('click',e=>{e.stopPropagation();jumpPage(q.page);});
+    // Choice buttons
+    if(q.type==='choice'&&q.options?.length){
+      q.options.forEach((_,oi)=>{
+        const btn=document.getElementById(`opt-${idx}-${oi}`);
+        if(btn) btn.addEventListener('click',()=>chooseOpt(idx,oi,String.fromCharCode(65+oi),q.answer||''));
+      });
+    }
+    // Reveal / grade
+    const revBtn=card.querySelector('[data-reveal]');
+    if(revBtn) revBtn.addEventListener('click',()=>revealAns(idx));
+    const gradeBtn=card.querySelector('[data-grade]');
+    if(gradeBtn) gradeBtn.addEventListener('click',()=>aiGrade(idx));
+  });
+}
+
+function toggleQCard(idx){
+  const body=document.getElementById('qbody-'+idx);
+  const isOpen=body.style.display!=='none';
+  document.querySelectorAll('[id^="qbody-"]').forEach(b=>b.style.display='none');
+  document.querySelectorAll('.qcard').forEach(c=>c.classList.remove('active'));
+  if(!isOpen){
+    body.style.display='block';
+    document.getElementById('qcard-'+idx).classList.add('active');
+    if(questions[idx].page) jumpPage(questions[idx].page);
+  }
+}
+
+async function chooseOpt(qIdx,optIdx,letter,correct){
+  const btns=document.querySelectorAll(`[id^="opt-${qIdx}-"]`);
+  btns.forEach(b=>b.disabled=true);
+  const isOk=correct&&letter.toUpperCase()===correct.toUpperCase().replace(/[^A-D]/g,'');
+  document.getElementById(`opt-${qIdx}-${optIdx}`).classList.add(isOk?'correct':'wrong');
+  if(!isOk&&correct){ const ci=correct.toUpperCase().charCodeAt(0)-65; const cb=document.getElementById(`opt-${qIdx}-${ci}`); if(cb) cb.classList.add('correct'); }
+  questions[qIdx]._answered=isOk; renderQuestions();
+  if(getKey()){
+    const q=questions[qIdx], pctx=q.page&&pageTexts[q.page]?pageTexts[q.page].substring(0,400):'';
+    const exp=document.getElementById(`aiexp-${qIdx}`);
+    if(exp){ exp.classList.add('show'); exp.innerHTML=`<div class="ai-exp-lbl">🤖 AI 解析</div><div class="tind"><span></span><span></span><span></span></div>`; }
+    try{
+      const txt=await callAI(`课本：${pctx}\n题：${q.text}\n选项：${(q.options||[]).map((o,i)=>String.fromCharCode(65+i)+'.'+o).join('  ')}\n正确答案：${correct}\n学生选了：${letter}\n请2-3句解释为什么正确答案是${correct}`);
+      if(exp) exp.innerHTML=`<div class="ai-exp-lbl">🤖 AI 解析</div>${txt.replace(/\n/g,'<br>')}`;
+    }catch{ if(exp) exp.innerHTML=`<div class="ai-exp-lbl">🤖 AI 解析</div>答案是 ${correct}。`; }
+  }
+}
+
+function revealAns(idx){ document.getElementById(`ans-${idx}`).classList.add('show'); questions[idx]._answered=true; renderQuestions(); }
+
+async function aiGrade(idx){
+  const q=questions[idx]; const ua=(document.getElementById(`essay-${idx}`)?.value||'').trim();
+  if(!ua){ toast('err','请先写下答案'); return; }
+  if(!getKey()){ toast('err','请填入 API Key'); return; }
+  const pctx=q.page&&pageTexts[q.page]?pageTexts[q.page].substring(0,400):'';
+  const exp=document.getElementById(`aiexp-${idx}`);
+  exp.classList.add('show'); exp.innerHTML=`<div class="ai-exp-lbl">🤖 批改中...</div><div class="tind"><span></span><span></span><span></span></div>`;
+  try{
+    const txt=await callAI(`题目：${q.text}\n参考答案：${q.answer||'无'}\n课本：${pctx}\n学生答案：${ua}\n请：1.评分（满分10分）2.优点和不足 3.补充核心要点`);
+    exp.innerHTML=`<div class="ai-exp-lbl">🤖 批改结果</div>${txt.replace(/\n/g,'<br>')}`;
+  }catch(e){ exp.innerHTML=`<div class="ai-exp-lbl">🤖 批改失败</div>${e.message}`; }
+}
+
+/* ════════════════════════════════════════
+   CHAT
+════════════════════════════════════════ */
+function quickSend(t){ document.getElementById('chatTa').value=t; sendChat(); }
+
+async function sendChat(){
+  const ta=document.getElementById('chatTa'); const text=ta.value.trim(); if(!text) return;
+  ta.value=''; ta.style.height='auto';
+  const key=getKey(); addMsg('user',text);
+  if(!key){ addMsg('ai','⚠️ 请先填入 API Key！'); return; }
+  const pctx=pdfDoc?(pageTexts[curPage]||'').substring(0,700):'';
+  const ctx=pctx?`[课本第${curPage}页]\n${pctx}\n\n`:'';
+  chatHistory.push({role:'user',content:ctx+text});
+  const tel=addMsg('ai',null,true);
+  document.getElementById('sendBtn').disabled=true;
+  try{
+    const res=await callAI(null,true);
+    tel.remove(); addMsg('ai',res); chatHistory.push({role:'assistant',content:res});
+  }catch(e){ tel.remove(); addMsg('ai','❌ 出错：'+e.message); }
+  document.getElementById('sendBtn').disabled=false;
+}
+
+function addMsg(role,text,typing=false){
+  const msgs=document.getElementById('chatMsgs');
+  const div=document.createElement('div'); div.className='cmsg '+role;
+  const av=role==='ai'?'🎓':'👤';
+  div.innerHTML=typing
+    ?`<div class="cav">${av}</div><div class="cbub"><div class="tind"><span></span><span></span><span></span></div></div>`
+    :`<div class="cav">${av}</div><div class="cbub">${fmt(text)}</div>`;
+  msgs.appendChild(div); msgs.scrollTop=msgs.scrollHeight; return div;
+}
+function fmt(t){ return (t||'').replace(/\*\*(.*?)\*\*/g,'<b>$1</b>').replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\n/g,'<br>'); }
+
+/* ════════════════════════════════════════
+   API (Claude + DeepSeek, robust JSON)
+════════════════════════════════════════ */
+function getKey(){
+  return document.getElementById('apiKey').value.replace(/[^\x20-\x7E]/g,'').trim();
+}
+function getModel(){ return document.getElementById('modelSel').value; }
+function setStatus(s,lbl){
+  document.getElementById('sdot').className='sdot '+(s==='ok'?'ok':s==='err'?'err':s==='spin'?'spin':'');
+  document.getElementById('stxt').textContent=lbl;
+}
+
+async function callAI(prompt, useHistory=false){
+  const key=getKey(), model=getModel();
+  if(!key) throw new Error('请填入 API Key');
+  const messages=useHistory?chatHistory:[{role:'user',content:prompt}];
+  try{
+    let result;
+    if(model==='deepseek'){
+      const res=await fetch(`${CFG.deepseekBase.replace(/\/$/,'')}/chat/completions`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+        body:JSON.stringify({model:CFG.deepseekModel,messages,max_tokens:2200,temperature:.3})
+      });
+      const data=await res.json();
+      if(!res.ok) throw new Error(data.error?.message||'DeepSeek error '+res.status);
+      result=data.choices[0].message.content;
+    } else {
+      const sys=useHistory
+        ?'You are a professional university TA. Reply in Chinese. Use bold for key terms.'
+        :'You are a professional university TA. Output ONLY the requested JSON. No markdown, no extra text.';
+      const res=await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:CFG.claudeModel,max_tokens:2200,system:sys,messages})
+      });
+      const data=await res.json();
+      if(!res.ok) throw new Error(data.error?.message||'Claude error '+res.status);
+      result=data.content[0].text;
+    }
+    setStatus('ok','OK'); return result;
+  }catch(e){ setStatus('err','ERR'); throw e; }
+}
+
+function extractJSON(raw){
+  if(!raw) throw new Error('空响应');
+  const t=raw.trim();
+  try{ return JSON.parse(t); }catch(e){}
+  const stripped=t.replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
+  try{ return JSON.parse(stripped); }catch(e){}
+  const m=stripped.match(/\{[\s\S]*\}/);
+  if(m){ try{ return JSON.parse(m[0]); }catch(e){ try{ return JSON.parse(fixJSON(m[0])); }catch(e2){} } }
+  throw new Error('JSON解析失败');
+}
+
+function fixJSON(s){
+  let inStr=false, esc=false;
+  const stack=[];
+  for(const c of s){
+    if(esc){esc=false;continue;}
+    if(c==='\\'&&inStr){esc=true;continue;}
+    if(c==='"'){inStr=!inStr;continue;}
+    if(inStr) continue;
+    if(c==='{'||c==='[') stack.push(c==='{'?'}':']');
+    else if(c==='}'||c===']') stack.pop();
+  }
+  if(inStr) s+='"';
+  while(stack.length) s+=stack.pop();
+  return s;
+}
+
+// Auto-detect API key type
+document.getElementById('apiKey').addEventListener('input',function(){
+  const v=this.value;
+  if(_modelLocked) return;
+  if(v.startsWith('sk-ant')) document.getElementById('modelSel').value='claude';
+  else if(v.startsWith('sk-')&&!v.startsWith('sk-ant')) document.getElementById('modelSel').value='deepseek';
+});
+document.getElementById('modelSel').addEventListener('change',()=>{ _modelLocked=true; });
+
+// Keyboard navigation
+document.addEventListener('keydown',e=>{
+  const tag=document.activeElement.tagName;
+  if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT') return;
+  if(e.key==='ArrowLeft'||e.key==='ArrowUp'){e.preventDefault();goPage(-1);}
+  else if(e.key==='ArrowRight'||e.key==='ArrowDown'){e.preventDefault();goPage(1);}
+  else if(e.key==='+'||e.key==='=') changeZoom(.15);
+  else if(e.key==='-') changeZoom(-.15);
+});
+
+/* ════════════════════════════════════════
+   TOAST
+════════════════════════════════════════ */
+function toast(type,msg){
+  const t=document.createElement('div'); t.className='toast '+type; t.textContent=msg;
+  document.body.appendChild(t); setTimeout(()=>t.remove(),3500);
+}
+</script>
+<script>
+/* ════════════════════════════════════════
+   结果打包：导出 / 导入（用于离线演示，不调用模型）
+   导出内容：目录结构 + 已生成的思维导图 + 段落精读结果
+   ════════════════════════════════════════ */
+(function(){
+  const PACK_VER = 2;
+  const dgCache = new Map();
+
+  // 包装 renderDigest，把每次精读结果存下来（renderDigest 是全局函数声明，可安全替换）
+  try {
+    const origRenderDigest = renderDigest;
+    renderDigest = function(dc, data, concept, startPage, snippet){
+      try {
+        const key = String(concept || '') + '@' + String(startPage || 0);
+        dgCache.set(key, { concept: concept || '', startPage: startPage || 0, snippet: snippet || '', data: data });
+      } catch (e) {}
+      return origRenderDigest.apply(this, arguments);
+    };
+  } catch (e) { console.warn('digest hook 不可用：', e); }
+
+  function collect(){
+    let outline = [];
+    try { if (typeof outlineFlat !== 'undefined' && Array.isArray(outlineFlat)) outline = outlineFlat; } catch (e) {}
+    let mm = [];
+    try { if (typeof mmCache !== 'undefined' && mmCache instanceof Map) mm = Array.from(mmCache.entries()); } catch (e) {}
+    let pages = 0;
+    try { if (typeof pdfDoc !== 'undefined' && pdfDoc) pages = pdfDoc.numPages || 0; } catch (e) {}
+    let chat = [], qs = [];
+    try { if (typeof chatHistory !== 'undefined' && Array.isArray(chatHistory)) chat = chatHistory; } catch (e) {}
+    try { if (typeof questions !== 'undefined' && Array.isArray(questions)) qs = questions; } catch (e) {}
+    let ocrPages = 0;
+    try { if (typeof _ocrCache !== 'undefined' && _ocrCache) ocrPages = Object.keys(_ocrCache).length; } catch (e) {}
+    return {
+      tool: 'study-agent', packVersion: PACK_VER, exportedAt: new Date().toISOString(),
+      pageCount: pages,
+      counts: { outline: outline.length, mindmaps: mm.length, digests: dgCache.size, chat: chat.length, questions: qs.length, ocrPages: ocrPages },
+      outline: outline,
+      mindmaps: mm,
+      digests: Array.from(dgCache.entries()),
+      chat: chat,
+      questions: qs
+    };
+  }
+
+  function exportPack(){
+    const pack = collect();
+    if (!pack.counts.mindmaps && !pack.counts.digests) {
+      toast('warn', '还没有生成过思维导图/精读，先上传课本并点几个章节再导出');
+      return;
+    }
+    const blob = new Blob([JSON.stringify(pack)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'study-agent-结果包-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    toast('ok', '已导出：章节 ' + pack.counts.outline + ' · 思维导图 ' + pack.counts.mindmaps + ' · 精读 ' + pack.counts.digests);
+  }
+
+  function importPack(text){
+    let pack;
+    try { pack = JSON.parse(text); } catch (e) { toast('err', 'JSON 解析失败'); return; }
+    if (!pack || !Array.isArray(pack.mindmaps)) { toast('err', '不是本工具导出的结果包'); return; }
+    try {
+      if (Array.isArray(pack.outline) && pack.outline.length) outlineFlat = pack.outline;
+      mmCache.clear();
+      pack.mindmaps.forEach(function(pair){ mmCache.set(pair[0], pair[1]); });
+      dgCache.clear();
+      (pack.digests || []).forEach(function(pair){ dgCache.set(pair[0], pair[1]); });
+      try { if (Array.isArray(pack.chat) && typeof chatHistory !== 'undefined') chatHistory = pack.chat; } catch (e) {}
+      try { if (Array.isArray(pack.questions) && typeof questions !== 'undefined') questions = pack.questions; } catch (e) {}
+      // 已加载 PDF 时顺手重绘目录；之后点目录节点会直接命中缓存，不再请求模型
+      try {
+        const box = document.getElementById('outlineScroll');
+        if (box && typeof renderOutlineItems === 'function' && Array.isArray(pack.outline) && pack.outline.length) {
+          box.innerHTML = '';
+          renderOutlineItems(pack.outline, box, 0, []);
+        }
+      } catch (e) {}
+      toast('ok', '已导入：思维导图 ' + pack.mindmaps.length + ' · 精读 ' + (pack.digests || []).length + ' · 问答 ' + ((pack.chat || []).length) + '（点目录即读缓存）');
+    } catch (e) { toast('err', '导入失败：' + e.message); }
+  }
+
+  const bar = document.createElement('div');
+  bar.style.cssText = 'position:fixed;right:14px;bottom:14px;z-index:99999;display:flex;gap:8px;align-items:center;background:#fff;border:1px solid #d8dee8;border-radius:10px;padding:8px 10px;box-shadow:0 6px 20px rgba(15,23,42,.14);font:13px/1.2 "Microsoft YaHei",Arial,sans-serif';
+  const mkBtn = function(label, primary){
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.style.cssText = 'cursor:pointer;font:inherit;padding:6px 12px;border-radius:7px;border:1px solid ' + (primary ? '#2458b8' : '#d8dee8') + ';background:' + (primary ? '#2458b8' : '#fff') + ';color:' + (primary ? '#fff' : '#334155') + ';font-weight:' + (primary ? '700' : '400');
+    return b;
+  };
+  const bExp = mkBtn('导出结果', true), bImp = mkBtn('导入结果', false);
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file'; fileInput.accept = '.json,application/json'; fileInput.style.display = 'none';
+  bar.appendChild(bExp); bar.appendChild(bImp); bar.appendChild(fileInput);
+  document.body.appendChild(bar);
+
+  bExp.addEventListener('click', exportPack);
+  bImp.addEventListener('click', function(){ fileInput.click(); });
+  fileInput.addEventListener('change', function(){
+    const f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = function(){ importPack(String(r.result || '')); };
+    r.readAsText(f);
+    fileInput.value = '';
+  });
+
+  window.__studyAgentPack = { collect: collect, exportPack: exportPack, importPack: importPack };
+})();
+</script>
+</body>
+</html>
